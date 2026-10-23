@@ -235,7 +235,7 @@ test('truncation, excess bytes, and wrong digests never publish a snapshot or in
         const ref = refFor(expected);
         const host = hostFor([[ref, actual]]);
         const event = eventFor([{ type: 'text', text: 'must survive' }, { type, attachment: ref }]);
-        await assert.rejects(vault.capture('bad', event, host),
+        await assert.rejects(() => vault.capture('bad', event, host),
           code(mode === 'digest' ? 'ERR_VAULT_ATTACHMENT_DIGEST' : 'ERR_VAULT_ATTACHMENT_BYTES'));
         assert.deepEqual((await vault.readRecord('drafts', 'bad:1')).event, event);
         assert.equal(await vault.readRecord('snapshots', 'bad:1'), null);
@@ -264,7 +264,7 @@ test('invalid attachment refs and returned host refs fail only after saving the 
       const block = { type: 'image' };
       if (attachment !== undefined) block.attachment = attachment;
       const event = eventFor([{ type: 'text', text: 'retained' }, block]);
-      await assert.rejects(vault.capture('refs', event, host), code(expected));
+      await assert.rejects(() => vault.capture('refs', event, host), code(expected));
       assert.deepEqual((await vault.readRecord('drafts', 'refs:1')).event, event);
       assert.equal(await vault.readRecord('snapshots', 'refs:1'), null);
       await noTemporary(root);
@@ -287,7 +287,7 @@ test('provider errors propagate by identity; earlier objects and drafts survive 
     finally { closed = true; }
   })();
   const event = eventFor([{ type: 'image', attachment: image }, { type: 'file', attachment: file }]);
-  await assert.rejects(vault.capture('retry', event, host), (cause) => cause === failure);
+  await assert.rejects(() => vault.capture('retry', event, host), (cause) => cause === failure);
   assert.ok(closed);
   assert.equal(await vault.readRecord('snapshots', 'retry:1'), null);
   assert.deepEqual(await fs.readFile(objectPath(root, image)), imageBytes);
@@ -324,7 +324,7 @@ test('abort before reading and mid-stream preserves text, abort reason, and clea
       };
       if (before) controller.abort(failure);
       const event = eventFor([{ type: 'text', text: 'abort cannot erase this' }, { type: 'file', attachment: ref }]);
-      await assert.rejects(vault.capture('abort', event, host, controller.signal), (cause) => cause === failure);
+      await assert.rejects(() => vault.capture('abort', event, host, controller.signal), (cause) => cause === failure);
       assert.equal(closed, !before);
       assert.deepEqual((await vault.readRecord('drafts', 'abort:1')).event, event);
       assert.equal(await vault.readRecord('snapshots', 'abort:1'), null);
@@ -350,9 +350,12 @@ test('abort interrupts a stalled provider without waiting for iterator.return', 
     }),
   };
   const pending = vault.capture('stalled', eventFor([{ type: 'file', attachment: ref }]), host, controller.signal);
+  // Observe the rejection before aborting: a promise that rejects while nothing
+  // handles it is reported by the runner as async activity after the test ended.
+  const rejection = assert.rejects(pending, (cause) => cause === reason);
   await ready;
   controller.abort(reason);
-  await assert.rejects(pending, (cause) => cause === reason);
+  await rejection;
   assert.ok(returned);
   assert.equal(await vault.readRecord('snapshots', 'stalled:1'), null);
   await noTemporary(root);
@@ -378,7 +381,7 @@ test('repeated/concurrent captures across instances publish one consistent snaps
   assert.equal((await fs.readdir(join(root, 'objects'))).length, 1);
   const changed = structuredClone(event);
   changed.data.content.push({ type: 'text', text: 'different event with same seq' });
-  await assert.rejects(vault.capture('concurrent', changed, host), code('ERR_VAULT_KEY_CONFLICT'));
+  await assert.rejects(() => vault.capture('concurrent', changed, host), code('ERR_VAULT_KEY_CONFLICT'));
   assert.deepEqual(await vault.readRecord('snapshots', 'concurrent:1'), snapshots[0]);
   await noTemporary(root);
 });
@@ -438,7 +441,7 @@ test('verify rejects a re-encoded image with a different returned ID', async (t)
   const snapshot = await vault.capture('reencoded', eventFor([{ type: 'image', attachment: ref }]), host);
   host.store.clear();
   host.saveImage = async () => refFor(Buffer.from('reencoded image'));
-  await assert.rejects(vault.verify(snapshot, host), code('ERR_VAULT_ATTACHMENT_ID_MISMATCH'));
+  await assert.rejects(() => vault.verify(snapshot, host), code('ERR_VAULT_ATTACHMENT_ID_MISMATCH'));
   assert.deepEqual(await fs.readFile(objectPath(root, ref)), data);
   assert.deepEqual(await vault.readRecord('snapshots', 'reencoded:1'), snapshot);
   await noTemporary(root);
@@ -464,7 +467,7 @@ test('verify detects savers that truncate, change IDs, or claim to save unreadab
         'partial-consumption': 'ERR_VAULT_INCOMPLETE_RESTORE', 'different-id': 'ERR_VAULT_ATTACHMENT_ID_MISMATCH',
         'still-missing': 'ENOENT', 'wrong-bytes': 'ERR_VAULT_ATTACHMENT_DIGEST',
       }[mode];
-      await assert.rejects(vault.verify(snapshot, host), code(expected));
+      await assert.rejects(() => vault.verify(snapshot, host), code(expected));
       assert.deepEqual(await fs.readFile(objectPath(root, ref)), data);
       await noTemporary(root);
     });
@@ -482,7 +485,7 @@ test('verify does not treat host corruption or permission failures as missing', 
       const permission = Object.assign(new Error('access denied'), { code: 'EACCES' });
       if (mode === 'permission') host.readFileStream = async () => { throw permission; };
       else host.store.set(ref.attachmentId, { ref, data: Buffer.from(mode === 'digest' ? 'evil' : 'g') });
-      await assert.rejects(vault.verify(snapshot, host), mode === 'permission' ? (cause) => cause === permission
+      await assert.rejects(() => vault.verify(snapshot, host), mode === 'permission' ? (cause) => cause === permission
         : code(mode === 'digest' ? 'ERR_VAULT_ATTACHMENT_DIGEST' : 'ERR_VAULT_ATTACHMENT_BYTES'));
       assert.equal(host.calls.saveFileStream.length, 0);
     });
@@ -504,8 +507,8 @@ test('existing snapshots and verify never trust corrupt/missing backup objects e
       else await fs.writeFile(objectPath(root, second), mode === 'truncated' ? 's' : Buffer.alloc(second.bytes, 0));
       const expected = { digest: 'ERR_VAULT_ATTACHMENT_DIGEST', truncated: 'ERR_VAULT_ATTACHMENT_BYTES', missing: 'ERR_VAULT_BACKUP_MISSING' }[mode];
       const readsBefore = host.calls.readFileStream.length + host.calls.readImage.length;
-      await assert.rejects(vault.capture('damaged', event, host), code(expected));
-      await assert.rejects(vault.verify(snapshot, host), code(expected));
+      await assert.rejects(() => vault.capture('damaged', event, host), code(expected));
+      await assert.rejects(() => vault.verify(snapshot, host), code(expected));
       assert.equal(host.calls.readFileStream.length + host.calls.readImage.length, readsBefore, 'all backups verified before any host call');
       assert.equal(host.calls.saveFileStream.length + host.calls.saveImage.length, 0);
       assert.deepEqual(await vault.readRecord('snapshots', 'damaged:1'), snapshot);
@@ -530,9 +533,9 @@ test('malformed snapshots cannot omit, reorder, redirect, or rewrite raw attachm
   ]) {
     const copy = structuredClone(snapshot);
     mutate(copy);
-    await assert.rejects(vault.verify(copy, {}), code('ERR_VAULT_SNAPSHOT_CORRUPT'));
+    await assert.rejects(() => vault.verify(copy, {}), code('ERR_VAULT_SNAPSHOT_CORRUPT'));
   }
-  await assert.rejects(vault.verify({ ...snapshot, version: 2 }, {}), code('ERR_VAULT_UNSUPPORTED_VERSION'));
+  await assert.rejects(() => vault.verify({ ...snapshot, version: 2 }, {}), code('ERR_VAULT_UNSUPPORTED_VERSION'));
 });
 
 test('records round-trip arbitrary JSON, atomically overwrite, and concurrent readers see complete values', async (t) => {
@@ -561,28 +564,28 @@ test('record corruption, unsupported versions, invalid UTF-8, and oversize JSON 
   const path = recordPath(root, 'operations', 'corrupt');
   for (const data of ['', '{', 'null', '[]', '{}', '{"version":1}', Buffer.from([0x7b, 0x22, 0xff, 0x22, 0x3a, 0x31, 0x7d])]) {
     await fs.writeFile(path, data);
-    await assert.rejects(vault.readRecord('operations', 'corrupt'), code('ERR_VAULT_RECORD_CORRUPT'));
+    await assert.rejects(() => vault.readRecord('operations', 'corrupt'), code('ERR_VAULT_RECORD_CORRUPT'));
   }
   for (const version of [0, 2, '1', null]) {
     await fs.writeFile(path, JSON.stringify({ version, value: {} }));
-    await assert.rejects(vault.readRecord('operations', 'corrupt'), code('ERR_VAULT_UNSUPPORTED_VERSION'));
+    await assert.rejects(() => vault.readRecord('operations', 'corrupt'), code('ERR_VAULT_UNSUPPORTED_VERSION'));
   }
   await vault.writeRecord('operations', 'corrupt', { safe: true });
   for (const value of [undefined, NaN, { value: BigInt(1) }, { value: undefined }]) {
-    await assert.rejects(vault.writeRecord('operations', 'corrupt', value), code('ERR_VAULT_RECORD_CORRUPT'));
+    await assert.rejects(() => vault.writeRecord('operations', 'corrupt', value), code('ERR_VAULT_RECORD_CORRUPT'));
     assert.deepEqual(await vault.readRecord('operations', 'corrupt'), { safe: true });
   }
   const circular = {}; circular.self = circular;
-  await assert.rejects(vault.writeRecord('operations', 'corrupt', circular), code('ERR_VAULT_RECORD_CORRUPT'));
-  await assert.rejects(vault.writeRecord('operations', 'corrupt', '大'.repeat(6 * 1024 * 1024)), code('ERR_VAULT_RECORD_TOO_LARGE'));
+  await assert.rejects(() => vault.writeRecord('operations', 'corrupt', circular), code('ERR_VAULT_RECORD_CORRUPT'));
+  await assert.rejects(() => vault.writeRecord('operations', 'corrupt', '大'.repeat(6 * 1024 * 1024)), code('ERR_VAULT_RECORD_TOO_LARGE'));
   assert.deepEqual(await vault.readRecord('operations', 'corrupt'), { safe: true });
   await fs.writeFile(path, Buffer.alloc(16 * 1024 * 1024 + 1, 0x20));
-  await assert.rejects(vault.readRecord('operations', 'corrupt'), code('ERR_VAULT_RECORD_TOO_LARGE'));
+  await assert.rejects(() => vault.readRecord('operations', 'corrupt'), code('ERR_VAULT_RECORD_TOO_LARGE'));
   const prefixBytes = Buffer.byteLength('{"version":1,"value":""}');
   const boundary = 'a'.repeat(16 * 1024 * 1024 - prefixBytes);
   await vault.writeRecord('operations', 'boundary', boundary);
   assert.equal(await vault.readRecord('operations', 'boundary'), boundary);
-  await assert.rejects(vault.writeRecord('operations', 'boundary', `${boundary}a`), code('ERR_VAULT_RECORD_TOO_LARGE'));
+  await assert.rejects(() => vault.writeRecord('operations', 'boundary', `${boundary}a`), code('ERR_VAULT_RECORD_TOO_LARGE'));
   await noTemporary(root);
 });
 
@@ -599,10 +602,10 @@ test('all keys become hash-only filenames and bucket traversal is rejected', asy
     assert.ok(names.every((name) => /^[a-f0-9]{64}\.json$/.test(name)));
   }
   for (const bucket of ['../escape', 'objects', '', '__proto__', '/tmp', null]) {
-    await assert.rejects(vault.writeRecord(bucket, 'key', {}), code('ERR_VAULT_BUCKET'));
-    await assert.rejects(vault.readRecord(bucket, 'key'), code('ERR_VAULT_BUCKET'));
+    await assert.rejects(() => vault.writeRecord(bucket, 'key', {}), code('ERR_VAULT_BUCKET'));
+    await assert.rejects(() => vault.readRecord(bucket, 'key'), code('ERR_VAULT_BUCKET'));
   }
-  await assert.rejects(vault.writeRecord('drafts', 1, {}), code('ERR_VAULT_KEY'));
+  await assert.rejects(() => vault.writeRecord('drafts', 1, {}), code('ERR_VAULT_KEY'));
   await noTemporary(root);
 });
 
@@ -612,24 +615,24 @@ test('symlinked roots, managed directories, record files, and object files are r
   await fs.mkdir(outside);
   const linkedRoot = join(root, 'linked-root');
   await fs.symlink(outside, linkedRoot, 'dir');
-  await assert.rejects(new Vault(linkedRoot).init(), code('ERR_VAULT_UNSAFE_PATH'));
+  await assert.rejects(() => new Vault(linkedRoot).init(), code('ERR_VAULT_UNSAFE_PATH'));
   const record = join(outside, 'record.json');
   await fs.writeFile(record, '{"version":1,"value":"untouched"}');
   await fs.symlink(record, recordPath(root, 'drafts', 'linked'));
-  await assert.rejects(vault.readRecord('drafts', 'linked'), code('ERR_VAULT_UNSAFE_PATH'));
-  await assert.rejects(vault.writeRecord('drafts', 'linked', 'overwritten'), code('ERR_VAULT_UNSAFE_PATH'));
+  await assert.rejects(() => vault.readRecord('drafts', 'linked'), code('ERR_VAULT_UNSAFE_PATH'));
+  await assert.rejects(() => vault.writeRecord('drafts', 'linked', 'overwritten'), code('ERR_VAULT_UNSAFE_PATH'));
   assert.equal(await fs.readFile(record, 'utf8'), '{"version":1,"value":"untouched"}');
   const data = Buffer.from('external object');
   const ref = refFor(data);
   const target = join(outside, 'external-object');
   await fs.writeFile(target, data);
   await fs.symlink(target, objectPath(root, ref));
-  await assert.rejects(vault.capture('symlink', eventFor([{ type: 'file', attachment: ref }]), hostFor([[ref, data]])), code('ERR_VAULT_UNSAFE_PATH'));
+  await assert.rejects(() => vault.capture('symlink', eventFor([{ type: 'file', attachment: ref }]), hostFor([[ref, data]])), code('ERR_VAULT_UNSAFE_PATH'));
   assert.equal(await vault.readRecord('snapshots', 'symlink:1'), null);
   await fs.rmdir(join(root, 'operations'));
   await fs.symlink(outside, join(root, 'operations'), 'dir');
-  await assert.rejects(vault.writeRecord('operations', 'escape', {}), code('ERR_VAULT_UNSAFE_PATH'));
-  await assert.rejects(new Vault(root).init(), code('ERR_VAULT_UNSAFE_PATH'));
+  await assert.rejects(() => vault.writeRecord('operations', 'escape', {}), code('ERR_VAULT_UNSAFE_PATH'));
+  await assert.rejects(() => new Vault(root).init(), code('ERR_VAULT_UNSAFE_PATH'));
   assert.deepEqual((await fs.readdir(outside)).sort(), ['external-object', 'record.json']);
 });
 
@@ -641,7 +644,7 @@ test('init creates missing nested directories and rejects regular files used as 
   assert.deepEqual(await nested.readRecord('operations', 'ok'), { ready: true });
   const file = join(root, 'not-directory');
   await fs.writeFile(file, 'keep');
-  await assert.rejects(new Vault(file).init());
+  await assert.rejects(() => new Vault(file).init());
   assert.equal(await fs.readFile(file, 'utf8'), 'keep');
 });
 
@@ -689,7 +692,7 @@ test('file fsync/rename failures preserve the old record, propagate original err
           return handle;
         },
       });
-      await assert.rejects(vault.writeRecord('operations', 'stable', { new: true }), (cause) => cause === failure);
+      await assert.rejects(() => vault.writeRecord('operations', 'stable', { new: true }), (cause) => cause === failure);
       assert.deepEqual(await vault.readRecord('operations', 'stable'), { old: true });
       await noTemporary(root);
     });
@@ -709,7 +712,7 @@ test('directory fsync errors are explicit and never roll back/delete already ren
           return handle;
         },
       });
-      await assert.rejects(vault.writeRecord('operations', 'renamed', { retained: true }), (cause) => cause === failure);
+      await assert.rejects(() => vault.writeRecord('operations', 'renamed', { retained: true }), (cause) => cause === failure);
       assert.deepEqual(await vault.readRecord('operations', 'renamed'), { retained: true });
       await noTemporary(root);
     });
@@ -751,7 +754,7 @@ test('capture fsync failures and cancellation just before snapshot rename retain
           return handle;
         },
       });
-      await assert.rejects(vault.capture('durability', event, hostFor([[ref, data]]), controller.signal), (cause) => cause === failure);
+      await assert.rejects(() => vault.capture('durability', event, hostFor([[ref, data]]), controller.signal), (cause) => cause === failure);
       assert.deepEqual((await vault.readRecord('drafts', 'durability:1')).event, event);
       assert.equal(await vault.readRecord('snapshots', 'durability:1'), null);
       if (stage === 'object-sync') assert.deepEqual(await fs.readdir(join(root, 'objects')), []);
@@ -781,7 +784,7 @@ test('Windows relies on metadata journaling but still propagates every file fsyn
       await vault.writeRecord('operations', errno, { saved: true });
       assert.deepEqual(await vault.readRecord('operations', errno), { saved: true });
       target = 'temporary';
-      await assert.rejects(vault.writeRecord('operations', errno, { replaced: true }), (cause) => cause === failure);
+      await assert.rejects(() => vault.writeRecord('operations', errno, { replaced: true }), (cause) => cause === failure);
       assert.deepEqual(await vault.readRecord('operations', errno), { saved: true });
       await noTemporary(root);
     });

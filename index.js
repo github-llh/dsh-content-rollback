@@ -130,6 +130,8 @@ export async function apply(ctx) {
   }));
   ctx.on('session/event', (session, event) => {
     if (!isUserMessage(event) || api.stopped || storageError) return;
+    // The capture must never surface as an unhandled rejection: a failed backup
+    // is reported through `archiveIssue`, never by crashing the host process.
     void api.locked(`capture:${session.id}`, async () => {
       try {
         await vault.capture(session.id, event, ctx.attachments);
@@ -138,6 +140,8 @@ export async function apply(ctx) {
         archiveIssues.set(session.id, error.code ?? 'BACKUP_FAILED');
         ctx.logger.warn(`content-rollback: backup failed (${error.code ?? 'BACKUP_FAILED'})`);
       }
+    }).catch((error) => {
+      ctx.logger.warn(`content-rollback: backup bookkeeping failed (${error?.code ?? error?.message ?? error})`);
     });
   });
   const agentDisposers = new Map();
