@@ -59,13 +59,21 @@ export function replyContent(text, quote) {
   return content;
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
 export function validateRequest(request) {
   if (!request || typeof request !== 'object' || Array.isArray(request)) throw new RecoveryError('BAD_REQUEST');
-  if (!['list', 'prepare', 'execute', 'status', 'save-draft', 'load-draft', 'reply'].includes(request.action)) throw new RecoveryError('BAD_ACTION');
-  if (request.action === 'prepare' && (!Number.isSafeInteger(request.seq) || request.seq < 0)) throw new RecoveryError('BAD_SEQUENCE');
+  if (!['list', 'prepare', 'execute', 'status', 'save-draft', 'load-draft', 'reply', 'inspect', 'resend', 'retry-turn'].includes(request.action)) throw new RecoveryError('BAD_ACTION');
+  if (['prepare', 'inspect'].includes(request.action) && (!Number.isSafeInteger(request.seq) || request.seq < 0)) throw new RecoveryError('BAD_SEQUENCE');
   if (['execute', 'status', 'save-draft', 'load-draft'].includes(request.action) && !/^[0-9a-f-]{36}$/.test(request.token ?? '')) throw new RecoveryError('BAD_TOKEN');
   if (request.action === 'execute' && !['retry', 'edit', 'send'].includes(request.mode)) throw new RecoveryError('BAD_MODE');
-  if (request.action === 'reply' && !/^[0-9a-f-]{36}$/.test(request.requestId ?? '')) throw new RecoveryError('BAD_REQUEST_ID');
+  if (['reply', 'resend', 'retry-turn'].includes(request.action) && !UUID.test(request.requestId ?? '')) throw new RecoveryError('BAD_REQUEST_ID');
+  if (request.action === 'resend') {
+    if (!Number.isSafeInteger(request.seq) || request.seq < 0) throw new RecoveryError('BAD_SEQUENCE');
+    if (request.edits !== undefined && (!Array.isArray(request.edits) || request.edits.length > 256 || request.edits.some((text) => typeof text !== 'string'))) throw new RecoveryError('INVALID_EDITS');
+  }
+  if (request.action === 'retry-turn' && (typeof request.messageId !== 'string' || request.messageId.length === 0 || request.messageId.length > 200)) throw new RecoveryError('BAD_MESSAGE_ID');
+  if (request.route !== undefined && (typeof request.route !== 'object' || request.route === null || typeof request.route.provider !== 'string' || typeof request.route.model !== 'string')) throw new RecoveryError('BAD_ROUTE');
   if (request.before !== undefined && (!Number.isSafeInteger(request.before) || request.before < 0)) throw new RecoveryError('BAD_SEQUENCE');
   if (Buffer.byteLength(JSON.stringify(request)) > 2 * 1024 * 1024) throw new RecoveryError('REQUEST_TOO_LARGE');
   return request;

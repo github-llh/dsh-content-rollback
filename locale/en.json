@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Conversation Recovery",
-    "description": "Recover and resend a sent message in the same DSH conversation, or reply while quoting selected text. Keeps text, images, files and video references with byte-verified local backups. No session is created or switched; tool side effects are not reverted."
+    "description": "Edit and resend a sent message right in its bubble, or retry a turn, while keeping text, images, files and video references with byte-verified local backups. Always stays in the same conversation; no session is created or switched, and tool side effects are not reverted."
   }
 }

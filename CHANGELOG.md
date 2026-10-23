@@ -4,6 +4,43 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.3.0
+
+### Added
+
+- Inline message actions: hover any user message for **Edit**, **Resend** and
+  **Copy**; the editor opens in place of the bubble instead of a detached dock.
+- **Retry turn** beside completed assistant answers and **Retry last turn** in
+  the history popover. Both resend the triggering user message in the same
+  conversation; the old answer stays in place.
+- Compact composer history popover with the latest 30 user messages, earlier
+  pagination, pending-draft resume and a one-click last-turn retry.
+- Host actions `resend`, `retry-turn` and `inspect`. `resend` accepts edited
+  text in one request and uses the client request id as the idempotent
+  operation token.
+- Toast notifications for retry results and send failures.
+
+### Changed
+
+- The always-visible composer dock panel and its draft writer were removed.
+  The only composer footprint is a compact history icon plus a quote icon that
+  appears when text is selected.
+- Quote reply now opens in the composer overlay using the same visual language
+  as the inline editor.
+- `list` now returns `lastUserSeq` so retrying the latest turn works even when
+  that turn failed before producing an assistant message.
+- Documentation and plugin metadata describe the inline interaction and the
+  append-only retry contract.
+
+### Fixed
+
+- Quote editor textarea no longer falls back to the browser's dark default in
+  the light theme.
+- A failed replacement never leaves an unhandled rejection in the operation
+  journal.
+- Reusing a request id with different edited content is rejected with
+  `REQUEST_CONFLICT` instead of silently replaying stale text.
+
 ## 0.2.0
 
 ### Added

@@ -8,6 +8,16 @@ import { Vault } from '../src/host/vault.js';
 import { RecoveryService } from '../src/host/service.js';
 import { RecoveryError, digest } from '../src/host/domain.js';
 
+async function rejects(task, expected) {
+  try { await task(); }
+  catch (error) {
+    if (expected instanceof RegExp) assert.match(error.message, expected);
+    else assert.equal(error.code, expected.code);
+    return;
+  }
+  assert.fail('expected the request to be rejected');
+}
+
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'dsh-rollback-service-'));
   t.after(() => rm(root, { recursive: true, force: true }));
@@ -15,7 +25,7 @@ async function fixture(t) {
   await vault.init();
   const content = [{ type: 'text', text: '  原文\r\n正文  ' }];
   const event = { seq: 2, time: 100, type: 'user/message', data: { id: 'original-message', role: 'user', source: { kind: 'user' }, content } };
-  const events = [{ seq: 0, type: 'turn/start' }, event, { seq: 3, type: 'assistant/message' }];
+  const events = [{ seq: 0, type: 'turn/start' }, event, { seq: 3, type: 'assistant/message', data: { message: { id: 'assistant-1', role: 'assistant', content: [{ type: 'text', text: '回答' }] } } }];
   const history = new Map([['source', events], ['other', events]]);
   const calls = { sent: [], disposed: 0, stopped: [], route: { provider: 'provider', model: 'model' } };
   const route = { provider: 'provider', model: 'model' };
@@ -89,16 +99,88 @@ test('edited text is sent in the same session and survives a restart', async (t)
   assert.equal(calls.sent[0].content[0].text, 'modified');
 });
 
+test('one-shot resend is idempotent and keeps the exact original content', async (t) => {
+  const { api, event, calls } = await fixture(t);
+  const request = { action: 'resend', seq: 2, requestId: randomUUID() };
+  const first = await api.request('source', request);
+  const second = await api.request('source', request);
+  assert.equal(first.state, 'accepted');
+  assert.equal(second.state, 'accepted');
+  assert.equal(calls.sent.length, 1);
+  assert.deepEqual(calls.sent[0].content, event.data.content);
+  assert.equal(calls.sent[0].messageId, `rollback-${request.requestId}`);
+});
+
+test('concurrent resends with one request id send exactly once', async (t) => {
+  const { api, event, calls } = await fixture(t);
+  const request = { action: 'resend', seq: 2, requestId: randomUUID() };
+  const [first, second] = await Promise.all([api.request('source', request), api.request('source', request)]);
+  assert.equal(first.state, 'accepted');
+  assert.equal(second.state, 'accepted');
+  assert.equal(calls.sent.length, 1);
+  assert.deepEqual(calls.sent[0].content, event.data.content);
+});
+
+test('one-shot resend applies edited text in block order', async (t) => {
+  const { api, event, calls } = await fixture(t);
+  event.data.content = [{ type: 'text', text: 'before' }, { type: 'text', text: 'after' }];
+  const result = await api.request('source', { action: 'resend', seq: 2, requestId: randomUUID(), edits: ['first', 'second'] });
+  assert.equal(result.state, 'accepted');
+  assert.deepEqual(calls.sent[0].content, [{ type: 'text', text: 'first' }, { type: 'text', text: 'second' }]);
+});
+
+test('reusing a request id with different edits is refused', async (t) => {
+  const { api, host } = await fixture(t);
+  host.quiesce = async () => { throw new RecoveryError('SESSION_RUNNING'); };
+  const request = { action: 'resend', seq: 2, requestId: randomUUID(), edits: ['first'] };
+  await rejects(() => api.request('source', request), { code: 'SESSION_RUNNING' });
+  await rejects(() => api.request('source', { ...request, edits: ['changed'] }), { code: 'REQUEST_CONFLICT' });
+});
+
+test('retry-turn resends the user message that produced the answer', async (t) => {
+  const { api, event, calls } = await fixture(t);
+  const result = await api.request('source', { action: 'retry-turn', messageId: 'assistant-1', requestId: randomUUID() });
+  assert.equal(result.state, 'accepted');
+  assert.equal(calls.sent.length, 1);
+  assert.equal(calls.sent[0].id, 'source');
+  assert.deepEqual(calls.sent[0].content, event.data.content);
+});
+
+test('retry-turn refuses an unknown assistant message', async (t) => {
+  const { api, calls } = await fixture(t);
+  await rejects(() => api.request('source', { action: 'retry-turn', messageId: 'missing', requestId: randomUUID() }), { code: 'MESSAGE_NOT_FOUND' });
+  assert.equal(calls.sent.length, 0);
+});
+
+test('inspect reads the original content without reserving a draft', async (t) => {
+  const { api, event } = await fixture(t);
+  const result = await api.request('source', { action: 'inspect', seq: 2 });
+  assert.deepEqual(result.content, event.data.content);
+  assert.deepEqual(result.originalContent, event.data.content);
+  assert.equal((await api.request('source', { action: 'list' })).pending, null);
+  assert.equal((await api.request('source', { action: 'list' })).lastUserSeq, 2);
+});
+
+test('inspect and list expose the tool calls that follow a message', async (t) => {
+  const { api, history } = await fixture(t);
+  const events = history.get('source').slice();
+  events.push({ seq: 4, type: 'tool/call', data: { name: 'bash' } });
+  events.push({ seq: 5, type: 'tool/result', data: {} });
+  history.set('source', events);
+  assert.equal((await api.request('source', { action: 'inspect', seq: 2 })).toolCalls, 1);
+  assert.equal((await api.request('source', { action: 'list' })).items[0].toolCalls, 1);
+});
+
 test('another session cannot address a saved operation', async (t) => {
   const { api } = await fixture(t);
   const plan = await api.request('source', { action: 'prepare', seq: 2 });
-  await assert.rejects(api.request('other', { action: 'execute', token: plan.token, mode: 'retry' }), { code: 'FORBIDDEN' });
+  await rejects(() => api.request('other', { action: 'execute', token: plan.token, mode: 'retry' }), { code: 'FORBIDDEN' });
 });
 
 test('sending before the editor is unlocked is refused', async (t) => {
   const { api, calls, route } = await fixture(t);
   const plan = await api.request('source', { action: 'prepare', seq: 2 });
-  await assert.rejects(api.request('source', { action: 'execute', token: plan.token, mode: 'send', route, revision: 0 }), { code: 'OPEN_EDITOR_FIRST' });
+  await rejects(() => api.request('source', { action: 'execute', token: plan.token, mode: 'send', route, revision: 0 }), { code: 'OPEN_EDITOR_FIRST' });
   assert.equal(calls.sent.length, 0);
 });
 
@@ -142,7 +224,7 @@ test('stale draft revisions are rejected without overwriting the saved draft', a
   const { api } = await fixture(t);
   const plan = await api.request('source', { action: 'prepare', seq: 2 });
   await api.request('source', { action: 'save-draft', token: plan.token, revision: 0, edits: ['first'] });
-  await assert.rejects(api.request('source', { action: 'save-draft', token: plan.token, revision: 0, edits: ['stale'] }), { code: 'DRAFT_CONFLICT' });
+  await rejects(() => api.request('source', { action: 'save-draft', token: plan.token, revision: 0, edits: ['stale'] }), { code: 'DRAFT_CONFLICT' });
   assert.equal((await api.request('source', { action: 'load-draft', token: plan.token })).content[0].text, 'first');
 });
 
@@ -150,7 +232,7 @@ test('backup failure happens before stopping or sending anything', async (t) => 
   const { api, vault, calls, route } = await fixture(t);
   const plan = await api.request('source', { action: 'prepare', seq: 2 });
   vault.verify = async () => { throw new Error('disk corrupt'); };
-  await assert.rejects(api.request('source', { action: 'execute', token: plan.token, mode: 'retry', route }), /disk corrupt/);
+  await rejects(() => api.request('source', { action: 'execute', token: plan.token, mode: 'retry', route }), /disk corrupt/);
   assert.equal(calls.sent.length, 0);
   assert.equal(calls.stopped.length, 0);
 });
@@ -159,7 +241,7 @@ test('unconfirmed persistence blocks sending', async (t) => {
   const { api, host, calls, route } = await fixture(t);
   host.flush = async () => false;
   const plan = await api.request('source', { action: 'prepare', seq: 2 });
-  await assert.rejects(api.request('source', { action: 'execute', token: plan.token, mode: 'retry', route }), { code: 'NO_PERSISTENCE' });
+  await rejects(() => api.request('source', { action: 'execute', token: plan.token, mode: 'retry', route }), { code: 'NO_PERSISTENCE' });
   assert.equal(calls.sent.length, 0);
 });
 
@@ -167,7 +249,7 @@ test('a running session is only stopped when the user asked for it', async (t) =
   const { api, host, calls, route } = await fixture(t);
   const plan = await api.request('source', { action: 'prepare', seq: 2 });
   host.quiesce = async () => { throw new RecoveryError('SESSION_RUNNING'); };
-  await assert.rejects(api.request('source', { action: 'execute', token: plan.token, mode: 'retry', route }), { code: 'SESSION_RUNNING' });
+  await rejects(() => api.request('source', { action: 'execute', token: plan.token, mode: 'retry', route }), { code: 'SESSION_RUNNING' });
   assert.equal(calls.sent.length, 0);
 });
 
@@ -189,7 +271,7 @@ test('a quoted reply is added once to the same session even after a retry', asyn
 test('listing a session without permission is refused', async (t) => {
   const { api, calls } = await fixture(t);
   calls.allowed = () => false;
-  await assert.rejects(api.request('source', { action: 'list' }), { code: 'FORBIDDEN' });
+  await rejects(() => api.request('source', { action: 'list' }), { code: 'FORBIDDEN' });
 });
 
 test('a transient session change keeps the editor unlocked instead of resetting it', async (t) => {
@@ -206,8 +288,8 @@ test('a transient session change keeps the editor unlocked instead of resetting 
 test('quoted replies cannot target another session or leave out the text', async (t) => {
   const { api, calls } = await fixture(t);
   calls.allowed = (id) => id === 'source';
-  await assert.rejects(api.request('other', { action: 'reply', text: 'hi', requestId: randomUUID() }), { code: 'FORBIDDEN' });
-  await assert.rejects(api.request('source', { action: 'reply', text: '  ', requestId: randomUUID() }), { code: 'EMPTY_REPLY' });
+  await rejects(() => api.request('other', { action: 'reply', text: 'hi', requestId: randomUUID() }), { code: 'FORBIDDEN' });
+  await rejects(() => api.request('source', { action: 'reply', text: '  ', requestId: randomUUID() }), { code: 'EMPTY_REPLY' });
   assert.equal(calls.sent.length, 0);
 });
 
@@ -235,7 +317,7 @@ test('locks from a proven-dead process are reclaimed; live locks are respected',
   assert.equal((await api.request('source', { action: 'execute', token: plan.token, mode: 'retry', route })).state, 'accepted');
   await writeFile(join(directory, digest('source')), JSON.stringify({ version: 2, pid: process.pid, token: 'live-owner' }));
   const second = await api.request('source', { action: 'prepare', seq: 2 });
-  await assert.rejects(api.request('source', { action: 'execute', token: second.token, mode: 'retry', route }), { code: 'RECOVERY_LOCKED' });
+  await rejects(() => api.request('source', { action: 'execute', token: second.token, mode: 'retry', route }), { code: 'RECOVERY_LOCKED' });
   assert.equal(calls.sent.length, 1);
 });
 

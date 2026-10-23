@@ -1,7 +1,7 @@
 {
   "name": "dsh-content-rollback",
-  "version": "0.2.0",
-  "description": "Recover and resend sent content in the same DSH conversation, with byte-verified local backups.",
+  "version": "0.3.0",
+  "description": "Edit, resend and retry sent messages inside the same DSH conversation, with byte-verified local backups.",
   "type": "module",
   "main": "./index.js",
   "icon": "icon.svg",

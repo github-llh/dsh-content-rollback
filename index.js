@@ -119,7 +119,7 @@ export async function apply(ctx) {
   ctx.effect(() => ctx.commands.register({
     definitionId: 'content-rollback', name: 'rollback',
     description: 'Recover and resend content in this same DSH conversation / 当前会话内找回并重发（不新建会话，不撤销工具副作用）',
-    input: { hint: 'JSON action: list, prepare, execute, reply, status, load-draft, save-draft' },
+    input: { hint: 'JSON action: list, inspect, resend, retry-turn, reply, prepare, execute, status, load-draft, save-draft' },
     recordInput: false,
     async handler({ agent, rawInput, signal }) {
       let request;
@@ -146,14 +146,16 @@ export async function apply(ctx) {
     const fiber = agent.ctx.inject(['tools'], (scoped) => {
       scoped.effect(() => scoped.tools.register({
         name: 'conversation_recovery',
-        description: 'Recover an earlier user message from the local backup and resend it in THIS SAME session, either unchanged or after the user edits the text; or add a reply that quotes text the user selected. Attachments keep their sent versions. This never creates or switches sessions, and it never reverts files or external tool side effects. Never execute it without the user asking for recovery or for the quoted reply.',
+        description: 'Recover an earlier user message from the local backup and resend it in THIS SAME session, either unchanged or after the user edits the text; retry the user message behind a completed assistant answer; or add a reply that quotes text the user selected. Attachments keep their sent versions. This never creates or switches sessions, and it never reverts files or external tool side effects. Never execute it without the user asking for recovery, a retry, or the quoted reply.',
         parameters: { type: 'object', properties: {
-          action: { type: 'string', enum: ['list', 'prepare', 'execute', 'status', 'load-draft', 'save-draft', 'reply'] },
+          action: { type: 'string', enum: ['list', 'inspect', 'resend', 'retry-turn', 'prepare', 'execute', 'status', 'load-draft', 'save-draft', 'reply'] },
           seq: { type: 'integer' }, token: { type: 'string' }, mode: { type: 'string', enum: ['edit', 'retry', 'send'] },
           before: { type: 'integer' }, edits: { type: 'array', items: { type: 'string' } }, revision: { type: 'integer' },
+          messageId: { type: 'string', description: 'Assistant message id for action=retry-turn' },
           text: { type: 'string', description: 'Reply body for action=reply' },
           quote: { type: 'string', description: 'Text the user selected, quoted in action=reply' },
-          requestId: { type: 'string', description: 'UUID that makes action=reply idempotent' },
+          requestId: { type: 'string', description: 'UUID that makes action=reply/resend/retry-turn idempotent' },
+          stop: { type: 'boolean', description: 'Stop the running turn before resending' },
           route: { type: 'object', properties: { provider: { type: 'string' }, model: { type: 'string' }, reasoningEffort: { type: 'string' } }, required: ['provider', 'model'] },
         }, required: ['action'], additionalProperties: false },
         output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
