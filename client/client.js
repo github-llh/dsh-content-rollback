@@ -156,9 +156,16 @@ var translations = {
     quoteSelection: "\u5F15\u7528\u9009\u4E2D",
     quoteHint: "\u628A\u9009\u4E2D\u7684\u6587\u5B57\u4F5C\u4E3A\u5F15\u7528\uFF0C\u56DE\u590D\u5230\u5F53\u524D\u4F1A\u8BDD",
     quotedSelection: "\u5F15\u7528 {count} \u5B57",
+    replyFloating: "\u56DE\u590D",
+    replyHint: "\u5F15\u7528\u9009\u4E2D\u7684\u6587\u5B57\uFF0C\u56DE\u590D\u5230\u5F53\u524D\u4F1A\u8BDD",
     replyPlaceholder: "\u56DE\u590D\u9009\u4E2D\u7684\u5185\u5BB9\u2026",
     replySend: "\u6DFB\u52A0\u5230\u5F53\u524D\u4F1A\u8BDD",
     replySent: "\u5F15\u7528\u56DE\u590D\u5DF2\u6DFB\u52A0\u5230\u5F53\u524D\u4F1A\u8BDD\u3002",
+    quotedCard: "\u5F15\u7528",
+    retractedEdit: "\u5DF2\u64A4\u56DE\uFF0C\u7F16\u8F91\u540E\u7684\u5185\u5BB9\u5DF2\u91CD\u53D1",
+    retractedRetry: "\u5DF2\u64A4\u56DE\uFF0C\u5DF2\u5728\u672C\u8F6E\u91CD\u65B0\u751F\u6210",
+    retractedHint: "\u6A21\u578B\u53EF\u89C1\u5386\u53F2\u5DF2\u56DE\u6EDA\u5230\u8FD9\u6761\u6D88\u606F\u4E4B\u524D\uFF1B\u539F\u59CB\u8BB0\u5F55\u4ECD\u4FDD\u7559\u5728\u8F6C\u5F55\u4E2D\uFF0C\u5DE5\u5177\u526F\u4F5C\u7528\u4E0D\u53D7\u5F71\u54CD\u3002",
+    retractSkippedNotice: "\u5DF2\u91CD\u53D1\uFF0C\u4F46\u4F1A\u8BDD\u671F\u95F4\u53D1\u751F\u4E86\u53D8\u5316\uFF0C\u65E7\u6D88\u606F\u672A\u80FD\u64A4\u56DE\u3002",
     backupIssue: "\u540E\u53F0\u5907\u4EFD\u672A\u5B8C\u6210\uFF1A{code}\uFF1B\u53D1\u9001\u524D\u4F1A\u91CD\u65B0\u6821\u9A8C\u3002",
     uncertain: "\u4E0A\u6B21\u53D1\u9001\u7ED3\u679C\u8FD8\u4E0D\u786E\u5B9A\u3002\u4E3A\u907F\u514D\u91CD\u590D\uFF0C\u5DF2\u6682\u505C\u91CD\u53D1\uFF1B\u8BF7\u5148\u6838\u5BF9\u3002",
     checkResult: "\u6838\u5BF9",
@@ -185,6 +192,7 @@ var translations = {
     "errors.REPLY_TOO_LONG": "\u56DE\u590D\u5185\u5BB9\u8FC7\u957F\u3002",
     "errors.QUOTE_TOO_LONG": "\u5F15\u7528\u7684\u5185\u5BB9\u8FC7\u957F\uFF0C\u8BF7\u51CF\u5C11\u9009\u4E2D\u8303\u56F4\u3002",
     "errors.REQUEST_TOO_LARGE": "\u8BF7\u6C42\u5185\u5BB9\u8FC7\u5927\u3002",
+    "errors.RETRACT_STALE": "\u4F1A\u8BDD\u5728\u8FD9\u6761\u6D88\u606F\u4E4B\u540E\u6709\u4E86\u65B0\u5185\u5BB9\uFF0C\u672A\u64A4\u56DE\u4EFB\u4F55\u5386\u53F2\uFF1B\u8BF7\u5237\u65B0\u540E\u91CD\u8BD5\u3002",
     "errors.BAD_REQUEST": "\u8BF7\u6C42\u683C\u5F0F\u65E0\u6548\u3002",
     "errors.BAD_ACTION": "\u4E0D\u652F\u6301\u7684\u64CD\u4F5C\u3002",
     "errors.BAD_SEQUENCE": "\u6D88\u606F\u4F4D\u7F6E\u65E0\u6548\uFF0C\u8BF7\u5237\u65B0\u540E\u91CD\u8BD5\u3002",
@@ -250,9 +258,16 @@ var translations = {
     quoteSelection: "Quote selection",
     quoteHint: "Reply to this conversation with the selected text quoted",
     quotedSelection: "Quoting {count} characters",
+    replyFloating: "Reply",
+    replyHint: "Reply to this conversation with the selected text quoted",
     replyPlaceholder: "Reply to the selection\u2026",
     replySend: "Add to conversation",
     replySent: "Quoted reply added to this conversation.",
+    quotedCard: "Quote",
+    retractedEdit: "Retracted \u2014 the edited text was resent",
+    retractedRetry: "Retracted \u2014 this turn was regenerated",
+    retractedHint: "The model-visible history was rolled back to before this message. The transcript keeps the original record, and tool side effects are untouched.",
+    retractSkippedNotice: "Resent, but the conversation changed in the meantime, so the old message was not retracted.",
     backupIssue: "Background backup is incomplete: {code}. Sending re-verifies the backup first.",
     uncertain: "The last send is still uncertain. Resending is paused to avoid duplicates; check the result first.",
     checkResult: "Check",
@@ -279,6 +294,7 @@ var translations = {
     "errors.REPLY_TOO_LONG": "The reply is too long.",
     "errors.QUOTE_TOO_LONG": "The quoted selection is too long.",
     "errors.REQUEST_TOO_LARGE": "The request is too large.",
+    "errors.RETRACT_STALE": "The conversation gained content after this message, so nothing was retracted. Refresh and retry.",
     "errors.BAD_REQUEST": "Invalid request.",
     "errors.BAD_ACTION": "Unsupported action.",
     "errors.BAD_SEQUENCE": "Invalid message position. Refresh and retry.",
@@ -321,6 +337,17 @@ var css = `
 .dcr-icon-btn svg{width:15px;height:15px}
 .dcr-inline-error{margin:1px 0 0;max-width:100%;font-size:11.5px;line-height:16px;color:var(--dsw-alias-state-error-primary);text-align:right;overflow-wrap:anywhere}
 .dcr-msg-note{display:flex;align-items:center;gap:5px;font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-tertiary);text-align:right}
+.dcr-msg-body{min-width:0;max-width:100%;display:flex;flex-direction:column;align-items:flex-end}
+.dcr-msg-retracted{opacity:.55}
+.dcr-msg-retracted .dcr-fallback-bubble{text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--dsw-alias-label-tertiary) 60%,transparent);text-decoration-thickness:1px}
+.dcr-msg-retracted-note{color:var(--dsw-alias-label-secondary)}
+.dcr-quote-card{display:flex;align-items:flex-start;gap:6px;max-width:min(calc(var(--dsh-chat-content-width,748px) * .702),82%);margin-bottom:2px;padding:5px 10px;border-left:2px solid color-mix(in srgb,var(--dsw-alias-label-tertiary) 55%,transparent);border-radius:0 var(--dsw-radius-sm,6px) var(--dsw-radius-sm,6px) 0;background:color-mix(in srgb,var(--dsw-alias-label-primary) 4%,transparent);font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary)}
+.dcr-quote-card svg{flex:none;margin-top:2px;opacity:.8}
+.dcr-quote-card span{min-width:0;white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.dcr-selection{position:fixed;z-index:900;transform:translate(-50%,0);animation:dcr-in .1s ease}
+.dcr-selection-btn{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 11px;border:1px solid var(--dsw-alias-border-l1);border-radius:999px;background:var(--dsw-alias-bg-layer-1);box-shadow:var(--dsw-elevation-prominent);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap}
+.dcr-selection-btn:hover{background:var(--dsw-alias-interactive-bg-hover-solid)}
+.dcr-selection-btn svg{opacity:.8}
 .dcr-msg-warning{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end;font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary)}
 .dcr-msg-warning .dcr-link{color:var(--dsw-alias-label-primary)}
 
@@ -487,21 +514,26 @@ function prepareContent(content) {
   return { text: texts.join(""), attachments, extraBlocks };
 }
 function useSelection() {
-  const [selection, setSelection] = (0, import_react.useState)("");
+  const [selection, setSelection] = (0, import_react.useState)(null);
   (0, import_react.useEffect)(() => {
     let frame = 0;
     const read = () => {
       frame = 0;
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed) {
-        setSelection("");
+        setSelection(null);
         return;
       }
       const node = sel.anchorNode;
       const element = node?.nodeType === 1 ? node : node?.parentElement;
       if (element?.closest?.('.dcr-chrome, [contenteditable="true"], textarea, input')) return;
       const text = sel.toString().replace(/\s+$/, "").trim();
-      setSelection(text.length > QUOTE_LIMIT ? text.slice(0, QUOTE_LIMIT) : text);
+      if (!text) {
+        setSelection(null);
+        return;
+      }
+      const rect = sel.rangeCount ? sel.getRangeAt(0).getBoundingClientRect() : null;
+      setSelection({ text: text.length > QUOTE_LIMIT ? text.slice(0, QUOTE_LIMIT) : text, rect });
     };
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(read);
@@ -512,16 +544,48 @@ function useSelection() {
       if (frame) cancelAnimationFrame(frame);
     };
   }, []);
+  (0, import_react.useEffect)(() => {
+    if (!selection?.rect) return;
+    const drop = () => setSelection((current) => current ? { ...current, rect: null } : current);
+    window.addEventListener("scroll", drop, true);
+    window.addEventListener("resize", drop);
+    return () => {
+      window.removeEventListener("scroll", drop, true);
+      window.removeEventListener("resize", drop);
+    };
+  }, [selection?.rect]);
   return selection;
 }
 var uiBySession = /* @__PURE__ */ new Map();
 var uiListeners = /* @__PURE__ */ new Map();
 function uiOf(sessionId) {
-  return uiBySession.get(sessionId) ?? { open: false, quote: "" };
+  return uiBySession.get(sessionId) ?? { open: false, quote: "", retracted: {} };
 }
 function updateUi(sessionId, patch) {
   uiBySession.set(sessionId, { ...uiOf(sessionId), ...patch });
   for (const listener of uiListeners.get(sessionId) ?? []) listener();
+}
+function markRetractedUi(sessionId, seq, mode) {
+  const current = uiOf(sessionId).retracted ?? {};
+  if (current[seq]) return;
+  updateUi(sessionId, { retracted: { ...current, [seq]: mode ?? "edit" } });
+}
+function useMarks(sessionId, remote) {
+  const dispatch = (0, import_react.useCallback)((patch) => updateUi(sessionId, patch), [sessionId]);
+  (0, import_react.useEffect)(() => {
+    let alive = true;
+    const load = () => callRecovery(typeof fetch === "function" ? fetch.bind(globalThis) : null, remote, sessionId, { action: "marks" }).then((result) => {
+      if (!alive) return;
+      const retracted = {};
+      for (const entry of result?.retracted ?? []) if (Number.isSafeInteger(entry?.seq)) retracted[entry.seq] = entry.mode ?? "edit";
+      dispatch({ retracted });
+    }, () => {
+    });
+    void load();
+    return () => {
+      alive = false;
+    };
+  }, [sessionId, remote, dispatch]);
 }
 function useUi(sessionId) {
   const [value, setValue] = (0, import_react.useState)(() => uiOf(sessionId));
@@ -608,6 +672,13 @@ function MessageEditor({ content, facts, loadImage, renderFactorySlot, t, busy, 
   const previewChips = !nativePreview && content.some((part) => part.type !== "text") ? /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-editor-chips" }, content.filter((part) => part.type !== "text").map((part, index) => /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-chip", key: index }, /* @__PURE__ */ import_react.default.createElement("span", null, part.attachment?.name || t(part.type === "image" ? "image" : "file")), part.attachment?.bytes !== void 0 && /* @__PURE__ */ import_react.default.createElement("em", null, part.attachment.bytes, " B")))) : null;
   return /* @__PURE__ */ import_react.default.createElement("div", { className: `dcr-editor${variant === "panel" ? " dcr-editor-panel" : ""}`, onKeyDown }, nativePreview ?? previewChips, textBlocks.length === 0 ? /* @__PURE__ */ import_react.default.createElement("p", { className: "dcr-editor-note" }, t("attachmentOnly")) : edits.map((value, index) => /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-editor-block", key: index }, edits.length > 1 && /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-editor-label" }, t("part", { index: index + 1 })), /* @__PURE__ */ import_react.default.createElement(AutoTextarea, { value, label: edits.length > 1 ? t("part", { index: index + 1 }) : t("messageText"), autoFocus: index === 0, onChange: (event) => setEdits((previous) => previous.map((item, position) => position === index ? event.target.value : item)), onKeyDown }))), warning && /* @__PURE__ */ import_react.default.createElement("p", { className: "dcr-editor-note dcr-editor-warning" }, warning), variant === "panel" && /* @__PURE__ */ import_react.default.createElement("p", { className: "dcr-editor-note" }, t("editorNote")), error && /* @__PURE__ */ import_react.default.createElement("p", { className: "dcr-inline-error", role: "alert" }, errorText(t, error)), /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-editor-foot" }, /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-editor-hint" }, busy ? t("working") : t("editHint", { modifier: PRIMARY_MODIFIER })), /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-editor-actions" }, variant === "panel" && /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-model" }, model ? t("modelLine", { model }) : t("noModel")), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-btn dcr-btn-ghost", disabled: busy, onClick: onCancel }, t("cancel")), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-btn dcr-btn-primary", title: t("editorNote"), disabled: !canSend, onClick: send }, busy ? /* @__PURE__ */ import_react.default.createElement(Spinner, null) : textBlocks.length === 0 ? null : /* @__PURE__ */ import_react.default.createElement(SendIcon, null), t(textBlocks.length === 0 ? "resendOriginal" : "sendEdited")))));
 }
+function splitQuoteReply(content) {
+  const first = content[0];
+  if (first?.type !== "text" || typeof first.text !== "string" || !first.text.startsWith(">")) return null;
+  const quote = first.text.split("\n").map((line) => line.replace(/^> ?/, "")).join("\n").replace(/\s+$/, "");
+  if (!quote) return null;
+  return { quote, body: content.slice(1) };
+}
 function UserMessageNode({ node, loadImage, renderFactorySlot, sessionId, remote, t }) {
   const data = node.data;
   const content = data.content;
@@ -623,6 +694,7 @@ function UserMessageNode({ node, loadImage, renderFactorySlot, sessionId, remote
   const textBlocks = prepared.text;
   const textCount = content.filter((part) => part.type === "text").length;
   const canEdit = textCount > 0;
+  const quoteReply = data.source?.["content-rollback"]?.kind === "quote-reply" ? splitQuoteReply(content) : null;
   const [editing, setEditing] = (0, import_react.useState)(false);
   const [busy, setBusy] = (0, import_react.useState)(false);
   const [error, setError] = (0, import_react.useState)(null);
@@ -650,6 +722,8 @@ function UserMessageNode({ node, loadImage, renderFactorySlot, sessionId, remote
     };
   }, [notice]);
   const request = (value) => callRecovery(typeof fetch === "function" ? fetch.bind(globalThis) : null, remote, sessionId, value);
+  const [ui] = useUi(sessionId);
+  const retracted = ui.retracted?.[data.seq];
   (0, import_react.useEffect)(() => {
     if (!editing) {
       setImpact(null);
@@ -665,8 +739,9 @@ function UserMessageNode({ node, loadImage, renderFactorySlot, sessionId, remote
       alive = false;
     };
   }, [editing, data.seq]);
-  const rendered = renderFactorySlot ? renderFactorySlot("conversation.chat.user.content", { content: prepared, loadImage, facts, interactive: true }) : null;
-  const native = rendered ?? /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-fallback" }, /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-fallback-bubble" }, prepared.text || t("attachmentOnly")), prepared.attachments.length > 0 && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-editor-chips" }, prepared.attachments.map((part, index) => /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-chip", key: index }, /* @__PURE__ */ import_react.default.createElement("span", null, part.image?.attachment?.name || part.file?.name || t("file"))))));
+  const bodyContent = quoteReply ? prepareContent(quoteReply.body) : prepared;
+  const rendered = renderFactorySlot && loadImage ? renderFactorySlot("conversation.chat.user.content", { content: bodyContent, loadImage, facts, interactive: true }) : null;
+  const native = rendered ?? /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-fallback" }, /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-fallback-bubble" }, bodyContent.text || t("attachmentOnly")), bodyContent.attachments.length > 0 && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-editor-chips" }, bodyContent.attachments.map((part, index) => /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-chip", key: index }, /* @__PURE__ */ import_react.default.createElement("span", null, part.image?.attachment?.name || part.file?.name || t("file"))))));
   async function send(edits) {
     if (busy || uncertain) return;
     const signature = JSON.stringify(edits ?? null);
@@ -680,7 +755,9 @@ function UserMessageNode({ node, loadImage, renderFactorySlot, sessionId, remote
       if (result.state === "accepted") {
         resetRequestId(requestRef);
         setEditing(false);
-        setNotice(t("sentAgain"));
+        markRetractedUi(sessionId, data.seq, result.mode);
+        if (result.retractSkipped) setNotice(t("retractSkippedNotice"));
+        else setNotice(t("sentAgain"));
         updateUi(sessionId, { open: false, quote: "" });
       } else if (result.state === "uncertain") {
         resetRequestId(requestRef);
@@ -730,11 +807,11 @@ function UserMessageNode({ node, loadImage, renderFactorySlot, sessionId, remote
       setError(null);
     }, onSend: send }));
   }
-  return /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-msg", "data-dcr-seq": data.seq, "data-busy": busy || void 0 }, native, /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-msg-actions" }, /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-msg-time" }, data.time ? timeText(data.time) : ""), canEdit && /* @__PURE__ */ import_react.default.createElement(IconButton, { label: t("editAndResend"), disabled: busy || Boolean(uncertain), onClick: () => {
+  return /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-msg", "data-dcr-seq": data.seq, "data-busy": busy || void 0, "data-retracted": retracted || void 0 }, quoteReply && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-quote-card" }, /* @__PURE__ */ import_react.default.createElement(QuoteIcon, null), /* @__PURE__ */ import_react.default.createElement("span", null, quoteReply.quote)), /* @__PURE__ */ import_react.default.createElement("div", { className: retracted ? "dcr-msg-body dcr-msg-retracted" : "dcr-msg-body", title: retracted ? t("retractedHint") : void 0 }, native), /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-msg-actions" }, /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-msg-time" }, data.time ? timeText(data.time) : ""), canEdit && /* @__PURE__ */ import_react.default.createElement(IconButton, { label: t("editAndResend"), disabled: busy || Boolean(uncertain) || Boolean(retracted), onClick: () => {
     setEditing(true);
     setError(null);
     setNotice(null);
-  } }, /* @__PURE__ */ import_react.default.createElement(EditIcon, null)), /* @__PURE__ */ import_react.default.createElement(IconButton, { label: t("resendHint"), disabled: busy || Boolean(uncertain), busy, onClick: () => void send(void 0) }, /* @__PURE__ */ import_react.default.createElement(ResendIcon, null)), textBlocks && /* @__PURE__ */ import_react.default.createElement(IconButton, { label: copied ? t("copied") : t("copy"), onClick: () => void copy() }, copied ? /* @__PURE__ */ import_react.default.createElement(CheckIcon, null) : /* @__PURE__ */ import_react.default.createElement(CopyIcon, null))), notice && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-msg-note" }, /* @__PURE__ */ import_react.default.createElement(CheckIcon, null), notice), error && /* @__PURE__ */ import_react.default.createElement("p", { className: "dcr-inline-error", role: "alert" }, errorText(t, error)), uncertain && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-msg-warning" }, /* @__PURE__ */ import_react.default.createElement(WarnIcon, null), t("uncertain"), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-link", disabled: busy, onClick: () => void check() }, t("checkResult"))));
+  } }, /* @__PURE__ */ import_react.default.createElement(EditIcon, null)), /* @__PURE__ */ import_react.default.createElement(IconButton, { label: t("resendHint"), disabled: busy || Boolean(uncertain) || Boolean(retracted), busy, onClick: () => void send(void 0) }, /* @__PURE__ */ import_react.default.createElement(ResendIcon, null)), textBlocks && /* @__PURE__ */ import_react.default.createElement(IconButton, { label: copied ? t("copied") : t("copy"), onClick: () => void copy() }, copied ? /* @__PURE__ */ import_react.default.createElement(CheckIcon, null) : /* @__PURE__ */ import_react.default.createElement(CopyIcon, null))), retracted && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-msg-note dcr-msg-retracted-note" }, /* @__PURE__ */ import_react.default.createElement(WarnIcon, null), t(retracted === "retry" ? "retractedRetry" : "retractedEdit")), notice && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-msg-note" }, /* @__PURE__ */ import_react.default.createElement(CheckIcon, null), notice), error && /* @__PURE__ */ import_react.default.createElement("p", { className: "dcr-inline-error", role: "alert" }, errorText(t, error)), uncertain && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-msg-warning" }, /* @__PURE__ */ import_react.default.createElement(WarnIcon, null), t("uncertain"), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-link", disabled: busy, onClick: () => void check() }, t("checkResult"))));
 }
 function RetryTurnAction({ messageId, sessionId, remote, t }) {
   const [busy, setBusy] = (0, import_react.useState)(false);
@@ -748,6 +825,7 @@ function RetryTurnAction({ messageId, sessionId, remote, t }) {
       const result = await request({ action: "retry-turn", messageId, requestId });
       if (result.state === "accepted") {
         resetRequestId(requestRef);
+        markRetractedUi(sessionId, result.seq, "retry");
         pushToast("success", t("retryStarted"));
       } else if (result.state === "uncertain") {
         resetRequestId(requestRef);
@@ -761,10 +839,24 @@ function RetryTurnAction({ messageId, sessionId, remote, t }) {
   }
   return /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-native-action", "aria-label": t("retryTurn"), title: t("retryTurnHint"), disabled: busy, onClick: () => void retry() }, busy ? /* @__PURE__ */ import_react.default.createElement(Spinner, null) : /* @__PURE__ */ import_react.default.createElement(RetryIcon, null));
 }
-function ComposerTools({ sessionId, t }) {
+function SelectionReply({ rect, t, onReply }) {
+  if (!rect) return null;
+  const style = {
+    left: `${Math.min(Math.max(rect.left + rect.width / 2, 84), Math.max(window.innerWidth - 84, 84))}px`,
+    top: `${Math.max(rect.top - 46, 12)}px`
+  };
+  return /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-selection dcr-chrome", style }, /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-selection-btn", "aria-label": t("replyFloating"), title: t("replyHint"), onPointerDown: (event) => event.preventDefault(), onClick: onReply }, /* @__PURE__ */ import_react.default.createElement(QuoteIcon, null), t("replyFloating")));
+}
+function ComposerTools({ sessionId, remote, t }) {
   const [ui, setUi] = useUi(sessionId);
   const selection = useSelection();
-  return /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-tools dcr-chrome" }, selection && /* @__PURE__ */ import_react.default.createElement(ToolButton, { label: t("quoteHint"), onPointerDown: (event) => event.preventDefault(), onClick: () => setUi({ open: true, quote: selection }) }, /* @__PURE__ */ import_react.default.createElement(QuoteIcon, null)), /* @__PURE__ */ import_react.default.createElement(ToolButton, { label: t("historyHint"), active: ui.open, onClick: () => setUi(ui.open ? { open: false, quote: "" } : { open: true, quote: "" }) }, /* @__PURE__ */ import_react.default.createElement(HistoryIcon, null)));
+  useMarks(sessionId, remote);
+  const openReply = () => {
+    if (!selection?.text) return;
+    setUi({ open: true, quote: selection.text });
+    window.getSelection?.()?.removeAllRanges?.();
+  };
+  return /* @__PURE__ */ import_react.default.createElement(import_react.default.Fragment, null, /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-tools dcr-chrome" }, selection && /* @__PURE__ */ import_react.default.createElement(ToolButton, { label: t("quoteHint"), onPointerDown: (event) => event.preventDefault(), onClick: openReply }, /* @__PURE__ */ import_react.default.createElement(QuoteIcon, null)), /* @__PURE__ */ import_react.default.createElement(ToolButton, { label: t("historyHint"), active: ui.open, onClick: () => setUi(ui.open ? { open: false, quote: "" } : { open: true, quote: "" }) }, /* @__PURE__ */ import_react.default.createElement(HistoryIcon, null))), /* @__PURE__ */ import_react.default.createElement(SelectionReply, { rect: selection?.rect, t, onReply: openReply }));
 }
 function QuoteEditor({ quote, sessionId, remote, t, onDone, onCancel }) {
   const [text, setText] = (0, import_react.useState)("");
@@ -929,6 +1021,7 @@ function RecoveryPanel({ sessionId, t, remote }) {
       if (!active.current) return;
       if (result.state === "accepted") {
         resetRequestId(retryRequest);
+        markRetractedUi(sessionId, data.lastUserSeq, "retry");
         pushToast("success", t("retryStarted"));
         setReload((value) => value + 1);
       } else if (result.state === "uncertain") {
@@ -952,7 +1045,9 @@ function RecoveryPanel({ sessionId, t, remote }) {
       if (!active.current) return;
       if (result.state === "accepted") {
         resetRequestId(panelRequest);
-        pushToast("success", t("sentAgain"));
+        markRetractedUi(sessionId, selected.seq, result.mode);
+        if (result.retractSkipped) pushToast("error", t("retractSkippedNotice"));
+        else pushToast("success", t("sentAgain"));
         back();
         setReload((value) => value + 1);
       } else if (result.state === "uncertain") {
@@ -997,7 +1092,7 @@ function apply(ctx) {
   ));
   ctx.slots.inject("conversation.input.left", () => ctx.slots.register(
     { name: "conversation.input.left", id: "content-rollback.history", order: 10, locale: NS },
-    (props) => /* @__PURE__ */ import_react.default.createElement(ComposerTools, { ...props })
+    (props) => /* @__PURE__ */ import_react.default.createElement(ComposerTools, { ...props, remote: ctx.remote })
   ));
   ctx.slots.inject("conversation.input.overlay", () => ctx.slots.register(
     { name: "conversation.input.overlay", id: "content-rollback.panel", order: 10, locale: NS },

@@ -17,6 +17,17 @@ export const css = `
 .dcr-icon-btn svg{width:15px;height:15px}
 .dcr-inline-error{margin:1px 0 0;max-width:100%;font-size:11.5px;line-height:16px;color:var(--dsw-alias-state-error-primary);text-align:right;overflow-wrap:anywhere}
 .dcr-msg-note{display:flex;align-items:center;gap:5px;font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-tertiary);text-align:right}
+.dcr-msg-body{min-width:0;max-width:100%;display:flex;flex-direction:column;align-items:flex-end}
+.dcr-msg-retracted{opacity:.55}
+.dcr-msg-retracted .dcr-fallback-bubble{text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--dsw-alias-label-tertiary) 60%,transparent);text-decoration-thickness:1px}
+.dcr-msg-retracted-note{color:var(--dsw-alias-label-secondary)}
+.dcr-quote-card{display:flex;align-items:flex-start;gap:6px;max-width:min(calc(var(--dsh-chat-content-width,748px) * .702),82%);margin-bottom:2px;padding:5px 10px;border-left:2px solid color-mix(in srgb,var(--dsw-alias-label-tertiary) 55%,transparent);border-radius:0 var(--dsw-radius-sm,6px) var(--dsw-radius-sm,6px) 0;background:color-mix(in srgb,var(--dsw-alias-label-primary) 4%,transparent);font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary)}
+.dcr-quote-card svg{flex:none;margin-top:2px;opacity:.8}
+.dcr-quote-card span{min-width:0;white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.dcr-selection{position:fixed;z-index:900;transform:translate(-50%,0);animation:dcr-in .1s ease}
+.dcr-selection-btn{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 11px;border:1px solid var(--dsw-alias-border-l1);border-radius:999px;background:var(--dsw-alias-bg-layer-1);box-shadow:var(--dsw-elevation-prominent);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap}
+.dcr-selection-btn:hover{background:var(--dsw-alias-interactive-bg-hover-solid)}
+.dcr-selection-btn svg{opacity:.8}
 .dcr-msg-warning{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end;font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary)}
 .dcr-msg-warning .dcr-link{color:var(--dsw-alias-label-primary)}
 

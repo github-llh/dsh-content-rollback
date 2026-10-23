@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { link, lstat, mkdir, open, readFile, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
-import { RecoveryError, digest, editContent, isUserMessage, messagePlan, publicOperation, replyContent, validateRequest } from './domain.js';
+import { RecoveryError, digest, editContent, isAppendUserMessage, messagePlan, publicOperation, replyContent, replyMarker, retractRange, retractRangeIntact, retractionMessageId, retractionSurfaceOp, validateRequest } from './domain.js';
 
 export class RecoveryService {
   constructor(host, vault) {
@@ -32,6 +32,7 @@ export class RecoveryService {
     if (request.action === 'inspect') return this.inspect(callerId, request.seq, signal);
     if (request.action === 'resend') return this.resend(callerId, request, signal);
     if (request.action === 'retry-turn') return this.retryTurn(callerId, request, signal);
+    if (request.action === 'marks') return this.marks(callerId);
     if (request.action === 'prepare') return this.locked(callerId, () => this.prepare(callerId, request.seq, signal));
     return this.locked(request.token, async () => {
       const operation = await this.vault.readRecord('operations', request.token);
@@ -57,14 +58,14 @@ export class RecoveryService {
     const observation = await this.host.observe(sessionId, signal);
     try {
       const all = observation.events;
-      const messages = all.filter(isUserMessage);
+      const messages = all.filter(isAppendUserMessage);
       const visible = messages.filter((event) => before === undefined || event.seq < before);
       const page = visible.slice(-30).reverse();
       const totalCalls = all.reduce((count, event) => count + (event.type === 'tool/call' ? 1 : 0), 0);
       const callsBefore = new Map();
       let seenCalls = 0;
       for (const event of all) {
-        if (isUserMessage(event)) callsBefore.set(event.seq, seenCalls);
+        if (isAppendUserMessage(event)) callsBefore.set(event.seq, seenCalls);
         if (event.type === 'tool/call') seenCalls++;
       }
       const link = await this.vault.readRecord('drafts', `session:${sessionId}`);
@@ -88,7 +89,7 @@ export class RecoveryService {
 
   async reply(sessionId, request, signal) {
     const content = replyContent(request.text, request.quote);
-    return this.host.reply(sessionId, content, `reply-${request.requestId}`, signal);
+    return this.host.reply(sessionId, content, `reply-${request.requestId}`, signal, replyMarker);
   }
 
   async inspect(sessionId, seq, signal) {
@@ -120,15 +121,37 @@ export class RecoveryService {
         toolCalls: plan.toolCalls, hasPathReferences: plan.hasPathReferences, updatedAt: Date.now(),
       };
       await this.save(operation);
+      await this.indexToken(sessionId, operation.token);
       await this.vault.writeRecord('drafts', `session:${sessionId}`, { version: 1, token: operation.token });
       return { ...publicOperation(operation), content: snapshot.event.data.content, revision: 0 };
     } finally { observation[Symbol.dispose](); }
   }
 
+  /** Remember every operation token per session so a restart can rebuild wake-ups. */
+  async indexToken(sessionId, token) {
+    const record = await this.vault.readRecord('drafts', `tokens:${sessionId}`);
+    const previous = Array.isArray(record?.tokens) ? record.tokens : [];
+    if (previous.includes(token)) return;
+    await this.vault.writeRecord('drafts', `tokens:${sessionId}`, { version: 1, tokens: [...previous, token].slice(-100) });
+  }
+
+  async sessionTokens(sessionId) {
+    const record = await this.vault.readRecord('drafts', `tokens:${sessionId}`);
+    return Array.isArray(record?.tokens) ? record.tokens : [];
+  }
+
+  async operation(token) {
+    return this.vault.readRecord('operations', token);
+  }
+
   /**
-   * One-shot resend used by the inline editor and the retry action. `requestId`
-   * is the operation token, so a disconnected retry reconciles instead of
-   * duplicating the message.
+   * One-shot resend used by the inline editor and the retry action. The
+   * original message and every turn the model saw after it are retracted from
+   * the derived history by one surface replacement, and the (edited) content
+   * is delivered at the original position — the conversation stays in this
+   * session and nothing is appended after the tail. `requestId` is the
+   * operation token, so a disconnected retry reconciles instead of duplicating
+   * the message.
    */
   async resend(sessionId, request, signal) {
     const token = request.requestId;
@@ -137,28 +160,27 @@ export class RecoveryService {
       if (existing.version !== 2 || existing.scope !== 'same-session') throw new RecoveryError('OPERATION_NOT_FOUND');
       if (existing.sourceSessionId !== sessionId) throw new RecoveryError('FORBIDDEN');
       if (existing.seq !== request.seq) throw new RecoveryError('BAD_SEQUENCE');
-      if (['accepted', 'sending', 'uncertain'].includes(existing.state)) return this.reconcile(existing, signal);
+      if (existing.state === 'accepted') return this.reconcile(existing, signal);
+      if (existing.state !== 'prepared') throw new RecoveryError('SEND_UNCERTAIN');
       const draft = await this.vault.readRecord('drafts', token);
       if (JSON.stringify(draft?.edits) !== JSON.stringify(request.edits)) throw new RecoveryError('REQUEST_CONFLICT');
-      return this.locked(sessionId, () => this.sendPrepared(existing, request, signal));
+      return this.locked(sessionId, () => this.launch(existing, request, signal));
     }
     const observation = await this.host.observe(sessionId, signal);
     let operation;
-    let content;
     try {
       const plan = messagePlan(observation.events, request.seq);
       if (plan.unsupported) throw new RecoveryError('UNSUPPORTED_CONTENT');
-      const snapshot = await this.vault.capture(sessionId, plan.event, this.host.attachments, signal);
-      content = snapshot.event.data.content;
+      await this.vault.capture(sessionId, plan.event, this.host.attachments, signal);
       operation = {
         version: 2, scope: 'same-session', token, sourceSessionId: sessionId, seq: request.seq,
         time: plan.event.time, state: 'prepared', mode: request.edits === undefined ? 'retry' : 'edit',
         fingerprint: plan.fingerprint, route: request.route ?? this.host.route(sessionId),
-        toolCalls: plan.toolCalls, hasPathReferences: plan.hasPathReferences, updatedAt: Date.now(),
+        toolCalls: plan.toolCalls, hasPathReferences: plan.hasPathReferences,
+        retract: retractRange(this.host.surface(sessionId).nodes, request.seq), updatedAt: Date.now(),
       };
     } finally { observation[Symbol.dispose](); }
-    if (request.edits !== undefined) editContent(content, request.edits);
-    const result = await this.locked(sessionId, async () => {
+    return this.locked(sessionId, async () => {
       // Write the operation under the session lock so a concurrent request with
       // the same requestId can never overwrite a later accepted state.
       const stored = await this.vault.readRecord('operations', token);
@@ -166,17 +188,136 @@ export class RecoveryService {
         if (stored.version !== 2 || stored.scope !== 'same-session') throw new RecoveryError('OPERATION_NOT_FOUND');
         if (stored.sourceSessionId !== sessionId) throw new RecoveryError('FORBIDDEN');
         if (stored.seq !== request.seq) throw new RecoveryError('BAD_SEQUENCE');
-        if (['accepted', 'sending', 'uncertain'].includes(stored.state)) return this.reconcile(stored, signal);
-        const draft = await this.vault.readRecord('drafts', token);
-        if (JSON.stringify(draft?.edits) !== JSON.stringify(request.edits)) throw new RecoveryError('REQUEST_CONFLICT');
-        return this.sendPrepared(stored, request, signal);
+        if (stored.state === 'accepted') return this.reconcile(stored, signal);
+        if (stored.state !== 'prepared') throw new RecoveryError('SEND_UNCERTAIN');
+        return this.launch(stored, request, signal);
       }
       if (request.edits !== undefined) await this.vault.writeRecord('drafts', token, { version: 1, token, edits: request.edits, revision: 1 });
       await this.save(operation);
-      return this.sendPrepared(operation, request, signal);
+      await this.indexToken(sessionId, token);
+      try { return await this.launch(operation, request, signal); }
+      catch (error) {
+        // Keep an unfinished edit resumable from the history popover.
+        await this.vault.writeRecord('drafts', `session:${sessionId}`, { version: 1, token }).catch(() => {});
+        throw error;
+      }
     });
-    if (result.state === 'accepted') await this.vault.writeRecord('drafts', `session:${sessionId}`, { version: 1, token }).catch(() => {});
-    return result;
+  }
+
+  async launch(operation, request, signal) {
+    if (operation.state === 'accepted') return this.reconcile(operation, signal);
+    const release = await acquireLock(this.vault.root, operation);
+    try {
+      const stored = await this.vault.readRecord('operations', operation.token);
+      if (stored.state !== operation.state) return this.reconcile(stored, signal);
+      return await this.deliverRetraction(stored, request, signal);
+    } finally { await release(); }
+  }
+
+  async deliverRetraction(operation, request, signal) {
+    const snapshot = await this.snapshot(operation);
+    await this.vault.verify(snapshot, this.host.attachments, signal);
+    const draft = await this.vault.readRecord('drafts', operation.token);
+    if (request.revision !== undefined && request.revision !== (draft?.revision ?? 0)) throw new RecoveryError('DRAFT_CONFLICT');
+    const content = editContent(snapshot.event.data.content, draft?.edits);
+    const actualRoute = this.host.route(operation.sourceSessionId);
+    if (!actualRoute || (request.route !== undefined && digest(actualRoute) !== digest(request.route))) {
+      operation.error = 'MODEL_CHANGED';
+      await this.save(operation);
+      return publicOperation(operation);
+    }
+    await this.host.validateContent(content, actualRoute, signal);
+    // Everything that can refuse without side effects has passed; only now may
+    // the session be quiesced.
+    await this.host.quiesce(operation.sourceSessionId, request.stop === true, signal);
+    signal?.throwIfAborted();
+    if (operation.retractEventSeq === undefined) {
+      const observation = await this.host.observe(operation.sourceSessionId, signal);
+      let range = operation.retract;
+      try {
+        if (messagePlan(observation.events, operation.seq).fingerprint !== operation.fingerprint) throw new RecoveryError('SOURCE_CHANGED');
+        const nodes = this.host.surface(operation.sourceSessionId).nodes;
+        // A range captured when the request arrived must still end at the live
+        // surface tail; anything the user sent since would be retracted too.
+        if (range === undefined) range = retractRange(nodes, operation.seq);
+        else if (!retractRangeIntact(nodes, range)) {
+          operation.error = 'RETRACT_STALE';
+          await this.save(operation);
+          throw new RecoveryError('RETRACT_STALE');
+        }
+      } finally { observation[Symbol.dispose](); }
+      let event;
+      try {
+        event = this.host.appendSurface(operation.sourceSessionId, 'user/message', {
+          id: retractionMessageId(operation.token), role: 'user', content, source: { kind: 'user' },
+        }, retractionSurfaceOp(range));
+      } catch (error) {
+        // The operation stays resumable; the failure is recorded for status reads.
+        operation.error = error?.code ?? 'SEND_UNCERTAIN';
+        await this.save(operation);
+        throw error;
+      }
+      operation.retract = range;
+      operation.retractEventSeq = event.seq;
+      await this.save(operation);
+      if (!await this.host.flush(operation.sourceSessionId)) throw new RecoveryError('NO_PERSISTENCE');
+    }
+    operation.state = 'accepted';
+    delete operation.error;
+    await this.save(operation);
+    this.host.followup(operation.sourceSessionId, {
+      id: retractionMessageId(operation.token), role: 'user', content, source: { kind: 'user' },
+    });
+    if (!await this.host.flush(operation.sourceSessionId)) throw new RecoveryError('NO_PERSISTENCE');
+    await this.markRetracted(operation.sourceSessionId, operation);
+    return { ...publicOperation(operation), retracted: true };
+  }
+
+  /**
+   * Decide, at the moment the agent loop claims the wake-up prompt, whether the
+   * retraction may suppress it. The replacement must still be the model-visible
+   * surface tail; anything appended since means the conversation moved on and
+   * the prompt is delivered as an ordinary message instead.
+   */
+  async landRetraction(sessionId, token, signal) {
+    const operation = await this.vault.readRecord('operations', token);
+    if (!operation || operation.version !== 2 || operation.scope !== 'same-session') return 'deliver';
+    if (operation.sourceSessionId !== sessionId || operation.retractEventSeq === undefined) return 'deliver';
+    const surface = this.host.surface(sessionId);
+    const index = surface.nodes.indexOf(operation.retractEventSeq);
+    if (index < 0 || index !== surface.nodes.length - 1) {
+      // The conversation moved on after the retraction landed; delivering the
+      // prompt as an ordinary message keeps history consistent.
+      if (operation.retractSkipped === undefined) {
+        operation.retractSkipped = 'STALE';
+        await this.save(operation);
+      }
+      return 'deliver';
+    }
+    const event = surface.eventAt(operation.retractEventSeq);
+    if (!event || event.type !== 'user/message' || event.data?.id !== retractionMessageId(token)) return 'deliver';
+    signal?.throwIfAborted();
+    if (operation.state !== 'accepted') {
+      operation.state = 'accepted';
+      delete operation.error;
+      await this.save(operation);
+      try { await this.host.flush(sessionId); } catch { /* the in-memory log already holds the replacement */ }
+    }
+    return 'suppress';
+  }
+
+  async markRetracted(sessionId, operation) {
+    const record = await this.vault.readRecord('drafts', `marks:${sessionId}`);
+    const previous = Array.isArray(record?.entries) ? record.entries : [];
+    const entries = [...previous.filter((entry) => entry.seq !== operation.seq), {
+      seq: operation.seq, mode: operation.mode, eventSeq: operation.retractEventSeq, time: Date.now(),
+    }].slice(-200);
+    await this.vault.writeRecord('drafts', `marks:${sessionId}`, { version: 1, entries });
+  }
+
+  async marks(sessionId) {
+    const record = await this.vault.readRecord('drafts', `marks:${sessionId}`);
+    return { retracted: Array.isArray(record?.entries) ? record.entries : [] };
   }
 
   async retryTurn(sessionId, request, signal) {
@@ -190,7 +331,7 @@ export class RecoveryService {
       }
       if (index < 0) throw new RecoveryError('MESSAGE_NOT_FOUND');
       for (let i = index - 1; i >= 0; i--) {
-        if (isUserMessage(events[i])) { seq = events[i].seq; break; }
+        if (isAppendUserMessage(events[i])) { seq = events[i].seq; break; }
       }
       if (seq === undefined) throw new RecoveryError('MESSAGE_NOT_FOUND');
     } finally { observation[Symbol.dispose](); }
@@ -227,7 +368,38 @@ export class RecoveryService {
         await this.save(operation);
       }
     }
+    if (operation.retractEventSeq !== undefined && ['prepared', 'ready'].includes(operation.state)) {
+      // The retraction landed but the operation never reached `accepted` — a
+      // crash or a refused flush barrier. Promote it and re-queue the prompt.
+      operation.state = 'accepted';
+      delete operation.error;
+      await this.save(operation);
+    }
+    if (operation.state === 'accepted' && operation.retractEventSeq !== undefined) {
+      // A crash between landing the retraction and queueing the wake-up prompt
+      // leaves a clean history with no answer: re-issue the prompt once.
+      await this.requeueRetraction(operation, signal);
+    }
     return publicOperation(operation);
+  }
+
+  async requeueRetraction(operation, signal) {
+    let surface;
+    try { surface = this.host.surface(operation.sourceSessionId); }
+    catch { return; }
+    const nodes = surface.nodes;
+    if (nodes.indexOf(operation.retractEventSeq) !== nodes.length - 1) return;
+    const messageId = retractionMessageId(operation.token);
+    if (typeof this.host.pending === 'function' && this.host.pending(operation.sourceSessionId, messageId)) return;
+    let content;
+    try {
+      const snapshot = await this.snapshot(operation);
+      const draft = await this.vault.readRecord('drafts', operation.token);
+      content = editContent(snapshot.event.data.content, draft?.edits);
+    } catch { return; }
+    this.host.followup(operation.sourceSessionId, { id: messageId, role: 'user', content, source: { kind: 'user' } });
+    try { await this.host.flush(operation.sourceSessionId); } catch { /* the in-memory log already holds the replacement */ }
+    signal?.throwIfAborted();
   }
 
   async execute(operation, request, signal) {
@@ -249,63 +421,13 @@ export class RecoveryService {
         await this.save(operation);
         return publicOperation(operation);
       }
-      return await this.deliver(stored, { stop: request.stop, route: request.route, requireRoute: true, revision: request.revision, mode: request.mode }, signal);
+      // Every send retracts the original message and its successor turns first,
+      // whichever entry path prepared the operation.
+      if (stored.mode === undefined) { stored.mode = request.mode === 'send' ? 'edit' : request.mode; await this.save(stored); }
+      return await this.deliverRetraction(stored, request, signal);
     } finally {
       await release();
     }
-  }
-
-  async sendPrepared(operation, request, signal) {
-    if (['accepted', 'sending', 'uncertain'].includes(operation.state)) return this.reconcile(operation, signal);
-    const release = await acquireLock(this.vault.root, operation);
-    try {
-      const stored = await this.vault.readRecord('operations', operation.token);
-      if (stored.state !== operation.state) return this.reconcile(stored, signal);
-      return await this.deliver(stored, { stop: request.stop, route: request.route, requireRoute: request.route !== undefined, mode: stored.mode }, signal);
-    } finally {
-      await release();
-    }
-  }
-
-  async deliver(operation, { stop, route, requireRoute, revision, mode }, signal) {
-    const snapshot = await this.snapshot(operation);
-    await this.vault.verify(snapshot, this.host.attachments, signal);
-    const observation = await this.host.observe(operation.sourceSessionId, signal);
-    try {
-      if (messagePlan(observation.events, operation.seq).fingerprint !== operation.fingerprint) throw new RecoveryError('SOURCE_CHANGED');
-    } finally { observation[Symbol.dispose](); }
-    await this.host.quiesce(operation.sourceSessionId, stop === true, signal);
-    if (!await this.host.flush(operation.sourceSessionId)) throw new RecoveryError('NO_PERSISTENCE');
-    signal?.throwIfAborted();
-    const actualRoute = this.host.route(operation.sourceSessionId);
-    if (!actualRoute || (requireRoute && digest(actualRoute) !== digest(route))) {
-      operation.error = 'MODEL_CHANGED';
-      await this.save(operation);
-      return publicOperation(operation);
-    }
-    const draft = await this.vault.readRecord('drafts', operation.token);
-    if (revision !== undefined && revision !== (draft?.revision ?? 0)) throw new RecoveryError('DRAFT_CONFLICT');
-    const content = editContent(snapshot.event.data.content, draft?.edits);
-    await this.host.validateContent(content, actualRoute, signal);
-    const cursor = await this.host.cursor(operation.sourceSessionId, signal);
-    const startedFrom = operation.state;
-    signal?.throwIfAborted();
-    operation.state = 'sending';
-    operation.route = actualRoute;
-    if (mode !== undefined) operation.mode = mode;
-    delete operation.error;
-    await this.save(operation);
-    try {
-      this.host.send(operation.sourceSessionId, content, `rollback-${operation.token}`, actualRoute, cursor);
-      if (!await this.host.flush(operation.sourceSessionId)) throw new RecoveryError('NO_PERSISTENCE');
-      operation.state = 'accepted';
-      await this.save(operation);
-    } catch (error) {
-      operation.state = error instanceof RecoveryError && ['MODEL_CHANGED', 'SESSION_CHANGED', 'PENDING_QUEUE'].includes(error.code) ? startedFrom : 'uncertain';
-      operation.error = error.code ?? 'SEND_UNCERTAIN';
-      await this.save(operation);
-    }
-    return publicOperation(operation);
   }
 
   async dispose() {

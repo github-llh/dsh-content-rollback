@@ -4,6 +4,41 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.4.0
+
+### Added
+
+- **Retracting resend**: editing and resending a user message now retracts the
+  original message and every turn the model saw after it, and delivers the
+  edited content at the original position. The model reads the conversation as
+  if the message had always been the edited version — no duplicate appended at
+  the tail, no fork, no new session.
+- **Retrying retracts too**: retrying a turn removes the old answer from the
+  model-visible history so the regenerated answer is not generated beside it.
+- Retracted messages render dimmed with a "retracted" badge; the badge survives
+  reloads through the new `marks` action and the per-session mark record.
+- Selection reply: selecting text in the conversation floats a **Reply** button
+  above the selection (the composer toolbar keeps its quote button).
+- Quoted replies render as a quote card above the body in the transcript; the
+  blockquoted content the model reads is unchanged.
+
+### Changed
+
+- `resend` and `retry-turn` deliver through one surface replacement plus a
+  suppressed wake-up prompt instead of appending a copy at the session tail.
+- The two-phase `prepare`/`execute` flow sends through the same retraction
+  path; the old tail-append delivery and its cursor contract were removed.
+- A send whose target history changed in the meantime is refused with
+  `RETRACT_STALE` instead of retracting newer messages.
+- Documentation describes the retraction contract: the durable transcript stays
+  append-only and fully visible; only the derived model history is rewritten.
+
+### Fixed
+
+- Editing an already-retracted message is disabled instead of producing a
+  confusing second retraction.
+- A crash between landing the retraction and queueing the wake-up prompt now
+  self-heals: reconcile promotes the operation and re-queues the prompt once.
 ## 0.3.0
 
 ### Added

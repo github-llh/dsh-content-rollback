@@ -84,23 +84,33 @@ function prepareContent(content) {
 }
 
 function useSelection() {
-  const [selection, setSelection] = useState('');
+  const [selection, setSelection] = useState(null);
   useEffect(() => {
     let frame = 0;
     const read = () => {
       frame = 0;
       const sel = window.getSelection();
-      if (!sel || sel.isCollapsed) { setSelection(''); return; }
+      if (!sel || sel.isCollapsed) { setSelection(null); return; }
       const node = sel.anchorNode;
       const element = node?.nodeType === 1 ? node : node?.parentElement;
       if (element?.closest?.('.dcr-chrome, [contenteditable="true"], textarea, input')) return;
       const text = sel.toString().replace(/\s+$/, '').trim();
-      setSelection(text.length > QUOTE_LIMIT ? text.slice(0, QUOTE_LIMIT) : text);
+      if (!text) { setSelection(null); return; }
+      const rect = sel.rangeCount ? sel.getRangeAt(0).getBoundingClientRect() : null;
+      setSelection({ text: text.length > QUOTE_LIMIT ? text.slice(0, QUOTE_LIMIT) : text, rect });
     };
     const schedule = () => { if (!frame) frame = requestAnimationFrame(read); };
     document.addEventListener('selectionchange', schedule);
     return () => { document.removeEventListener('selectionchange', schedule); if (frame) cancelAnimationFrame(frame); };
   }, []);
+  // A stale rectangle would float the reply pill over the wrong place after scrolling.
+  useEffect(() => {
+    if (!selection?.rect) return;
+    const drop = () => setSelection((current) => current ? { ...current, rect: null } : current);
+    window.addEventListener('scroll', drop, true);
+    window.addEventListener('resize', drop);
+    return () => { window.removeEventListener('scroll', drop, true); window.removeEventListener('resize', drop); };
+  }, [selection?.rect]);
   return selection;
 }
 
@@ -108,12 +118,36 @@ const uiBySession = new Map();
 const uiListeners = new Map();
 
 function uiOf(sessionId) {
-  return uiBySession.get(sessionId) ?? { open: false, quote: '' };
+  return uiBySession.get(sessionId) ?? { open: false, quote: '', retracted: {} };
 }
 
 function updateUi(sessionId, patch) {
   uiBySession.set(sessionId, { ...uiOf(sessionId), ...patch });
   for (const listener of uiListeners.get(sessionId) ?? []) listener();
+}
+
+/** Mark a message as retracted in the shared UI state so every node rebadges. */
+function markRetractedUi(sessionId, seq, mode) {
+  const current = uiOf(sessionId).retracted ?? {};
+  if (current[seq]) return;
+  updateUi(sessionId, { retracted: { ...current, [seq]: mode ?? 'edit' } });
+}
+
+/** Read the durable retraction marks once per session so badges survive reloads. */
+function useMarks(sessionId, remote) {
+  const dispatch = useCallback((patch) => updateUi(sessionId, patch), [sessionId]);
+  useEffect(() => {
+    let alive = true;
+    const load = () => callRecovery(typeof fetch === 'function' ? fetch.bind(globalThis) : null, remote, sessionId, { action: 'marks' })
+      .then((result) => {
+        if (!alive) return;
+        const retracted = {};
+        for (const entry of result?.retracted ?? []) if (Number.isSafeInteger(entry?.seq)) retracted[entry.seq] = entry.mode ?? 'edit';
+        dispatch({ retracted });
+      }, () => {});
+    void load();
+    return () => { alive = false; };
+  }, [sessionId, remote, dispatch]);
 }
 
 function useUi(sessionId) {
@@ -223,6 +257,15 @@ function MessageEditor({ content, facts, loadImage, renderFactorySlot, t, busy, 
   </div>;
 }
 
+/** Split a quoted reply into its card and body; the model still reads the blockquote. */
+function splitQuoteReply(content) {
+  const first = content[0];
+  if (first?.type !== 'text' || typeof first.text !== 'string' || !first.text.startsWith('>')) return null;
+  const quote = first.text.split('\n').map((line) => line.replace(/^> ?/, '')).join('\n').replace(/\s+$/, '');
+  if (!quote) return null;
+  return { quote, body: content.slice(1) };
+}
+
 function UserMessageNode({ node, loadImage, renderFactorySlot, sessionId, remote, t }) {
   const data = node.data;
   const content = data.content;
@@ -238,6 +281,7 @@ function UserMessageNode({ node, loadImage, renderFactorySlot, sessionId, remote
   const textBlocks = prepared.text;
   const textCount = content.filter((part) => part.type === 'text').length;
   const canEdit = textCount > 0;
+  const quoteReply = data.source?.['content-rollback']?.kind === 'quote-reply' ? splitQuoteReply(content) : null;
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -255,6 +299,8 @@ function UserMessageNode({ node, loadImage, renderFactorySlot, sessionId, remote
     return () => { if (timer.current) clearTimeout(timer.current); };
   }, [notice]);
   const request = (value) => callRecovery(typeof fetch === 'function' ? fetch.bind(globalThis) : null, remote, sessionId, value);
+  const [ui] = useUi(sessionId);
+  const retracted = ui.retracted?.[data.seq];
   useEffect(() => {
     if (!editing) { setImpact(null); return; }
     let alive = true;
@@ -263,12 +309,13 @@ function UserMessageNode({ node, loadImage, renderFactorySlot, sessionId, remote
     return () => { alive = false; };
   }, [editing, data.seq]);
 
-  const rendered = renderFactorySlot
-    ? renderFactorySlot('conversation.chat.user.content', { content: prepared, loadImage, facts, interactive: true })
+  const bodyContent = quoteReply ? prepareContent(quoteReply.body) : prepared;
+  const rendered = renderFactorySlot && loadImage
+    ? renderFactorySlot('conversation.chat.user.content', { content: bodyContent, loadImage, facts, interactive: true })
     : null;
   const native = rendered ?? <div className="dcr-fallback">
-    <div className="dcr-fallback-bubble">{prepared.text || t('attachmentOnly')}</div>
-    {prepared.attachments.length > 0 && <div className="dcr-editor-chips">{prepared.attachments.map((part, index) => <span className="dcr-chip" key={index}><span>{part.image?.attachment?.name || part.file?.name || t('file')}</span></span>)}</div>}
+    <div className="dcr-fallback-bubble">{bodyContent.text || t('attachmentOnly')}</div>
+    {bodyContent.attachments.length > 0 && <div className="dcr-editor-chips">{bodyContent.attachments.map((part, index) => <span className="dcr-chip" key={index}><span>{part.image?.attachment?.name || part.file?.name || t('file')}</span></span>)}</div>}
   </div>;
 
   async function send(edits) {
@@ -284,7 +331,10 @@ function UserMessageNode({ node, loadImage, renderFactorySlot, sessionId, remote
       if (result.state === 'accepted') {
         resetRequestId(requestRef);
         setEditing(false);
-        setNotice(t('sentAgain'));
+        // The original message is retracted from the model-visible history.
+        markRetractedUi(sessionId, data.seq, result.mode);
+        if (result.retractSkipped) setNotice(t('retractSkippedNotice'));
+        else setNotice(t('sentAgain'));
         updateUi(sessionId, { open: false, quote: '' });
       } else if (result.state === 'uncertain') {
         resetRequestId(requestRef);
@@ -329,14 +379,21 @@ function UserMessageNode({ node, loadImage, renderFactorySlot, sessionId, remote
     </div>;
   }
 
-  return <div className="dcr-msg" data-dcr-seq={data.seq} data-busy={busy || undefined}>
-    {native}
+  return <div className="dcr-msg" data-dcr-seq={data.seq} data-busy={busy || undefined} data-retracted={retracted || undefined}>
+    {quoteReply && <div className="dcr-quote-card">
+      <QuoteIcon />
+      <span>{quoteReply.quote}</span>
+    </div>}
+    <div className={retracted ? 'dcr-msg-body dcr-msg-retracted' : 'dcr-msg-body'} title={retracted ? t('retractedHint') : undefined}>
+      {native}
+    </div>
     <div className="dcr-msg-actions">
       <span className="dcr-msg-time">{data.time ? timeText(data.time) : ''}</span>
-      {canEdit && <IconButton label={t('editAndResend')} disabled={busy || Boolean(uncertain)} onClick={() => { setEditing(true); setError(null); setNotice(null); }}><EditIcon /></IconButton>}
-      <IconButton label={t('resendHint')} disabled={busy || Boolean(uncertain)} busy={busy} onClick={() => void send(undefined)}><ResendIcon /></IconButton>
+      {canEdit && <IconButton label={t('editAndResend')} disabled={busy || Boolean(uncertain) || Boolean(retracted)} onClick={() => { setEditing(true); setError(null); setNotice(null); }}><EditIcon /></IconButton>}
+      <IconButton label={t('resendHint')} disabled={busy || Boolean(uncertain) || Boolean(retracted)} busy={busy} onClick={() => void send(undefined)}><ResendIcon /></IconButton>
       {textBlocks && <IconButton label={copied ? t('copied') : t('copy')} onClick={() => void copy()}>{copied ? <CheckIcon /> : <CopyIcon />}</IconButton>}
     </div>
+    {retracted && <div className="dcr-msg-note dcr-msg-retracted-note"><WarnIcon />{t(retracted === 'retry' ? 'retractedRetry' : 'retractedEdit')}</div>}
     {notice && <div className="dcr-msg-note"><CheckIcon />{notice}</div>}
     {error && <p className="dcr-inline-error" role="alert">{errorText(t, error)}</p>}
     {uncertain && <div className="dcr-msg-warning"><WarnIcon />{t('uncertain')}<button type="button" className="dcr-link" disabled={busy} onClick={() => void check()}>{t('checkResult')}</button></div>}
@@ -353,7 +410,11 @@ function RetryTurnAction({ messageId, sessionId, remote, t }) {
     try {
       const request = (value) => callRecovery(typeof fetch === 'function' ? fetch.bind(globalThis) : null, remote, sessionId, value);
       const result = await request({ action: 'retry-turn', messageId, requestId });
-      if (result.state === 'accepted') { resetRequestId(requestRef); pushToast('success', t('retryStarted')); }
+      if (result.state === 'accepted') {
+        resetRequestId(requestRef);
+        markRetractedUi(sessionId, result.seq, 'retry');
+        pushToast('success', t('retryStarted'));
+      }
       else if (result.state === 'uncertain') { resetRequestId(requestRef); pushToast('error', t('errors.SEND_UNCERTAIN')); }
       else pushToast('error', errorText(t, result.error ?? 'RECOVERY_FAILED'));
     } catch (cause) {
@@ -365,13 +426,35 @@ function RetryTurnAction({ messageId, sessionId, remote, t }) {
   return <button type="button" className="dcr-native-action" aria-label={t('retryTurn')} title={t('retryTurnHint')} disabled={busy} onClick={() => void retry()}>{busy ? <Spinner /> : <RetryIcon />}</button>;
 }
 
-function ComposerTools({ sessionId, t }) {
+function SelectionReply({ rect, t, onReply }) {
+  if (!rect) return null;
+  const style = {
+    left: `${Math.min(Math.max(rect.left + rect.width / 2, 84), Math.max(window.innerWidth - 84, 84))}px`,
+    top: `${Math.max(rect.top - 46, 12)}px`,
+  };
+  return <div className="dcr-selection dcr-chrome" style={style}>
+    <button type="button" className="dcr-selection-btn" aria-label={t('replyFloating')} title={t('replyHint')} onPointerDown={(event) => event.preventDefault()} onClick={onReply}>
+      <QuoteIcon />{t('replyFloating')}
+    </button>
+  </div>;
+}
+
+function ComposerTools({ sessionId, remote, t }) {
   const [ui, setUi] = useUi(sessionId);
   const selection = useSelection();
-  return <span className="dcr-tools dcr-chrome">
-    {selection && <ToolButton label={t('quoteHint')} onPointerDown={(event) => event.preventDefault()} onClick={() => setUi({ open: true, quote: selection })}><QuoteIcon /></ToolButton>}
-    <ToolButton label={t('historyHint')} active={ui.open} onClick={() => setUi(ui.open ? { open: false, quote: '' } : { open: true, quote: '' })}><HistoryIcon /></ToolButton>
-  </span>;
+  useMarks(sessionId, remote);
+  const openReply = () => {
+    if (!selection?.text) return;
+    setUi({ open: true, quote: selection.text });
+    window.getSelection?.()?.removeAllRanges?.();
+  };
+  return <>
+    <span className="dcr-tools dcr-chrome">
+      {selection && <ToolButton label={t('quoteHint')} onPointerDown={(event) => event.preventDefault()} onClick={openReply}><QuoteIcon /></ToolButton>}
+      <ToolButton label={t('historyHint')} active={ui.open} onClick={() => setUi(ui.open ? { open: false, quote: '' } : { open: true, quote: '' })}><HistoryIcon /></ToolButton>
+    </span>
+    <SelectionReply rect={selection?.rect} t={t} onReply={openReply} />
+  </>;
 }
 
 function QuoteEditor({ quote, sessionId, remote, t, onDone, onCancel }) {
@@ -527,7 +610,7 @@ function RecoveryPanel({ sessionId, t, remote }) {
     try {
       const result = await request({ action: 'resend', seq: data.lastUserSeq, requestId });
       if (!active.current) return;
-      if (result.state === 'accepted') { resetRequestId(retryRequest); pushToast('success', t('retryStarted')); setReload((value) => value + 1); }
+      if (result.state === 'accepted') { resetRequestId(retryRequest); markRetractedUi(sessionId, data.lastUserSeq, 'retry'); pushToast('success', t('retryStarted')); setReload((value) => value + 1); }
       else if (result.state === 'uncertain') { resetRequestId(retryRequest); setError('SEND_UNCERTAIN'); }
       else setError(result.error ?? 'RECOVERY_FAILED');
     } catch (cause) {
@@ -547,7 +630,9 @@ function RecoveryPanel({ sessionId, t, remote }) {
       if (!active.current) return;
       if (result.state === 'accepted') {
         resetRequestId(panelRequest);
-        pushToast('success', t('sentAgain'));
+        markRetractedUi(sessionId, selected.seq, result.mode);
+        if (result.retractSkipped) pushToast('error', t('retractSkippedNotice'));
+        else pushToast('success', t('sentAgain'));
         back();
         setReload((value) => value + 1);
       } else if (result.state === 'uncertain') {
@@ -631,7 +716,7 @@ export function apply(ctx) {
   ));
   ctx.slots.inject('conversation.input.left', () => ctx.slots.register(
     { name: 'conversation.input.left', id: 'content-rollback.history', order: 10, locale: NS },
-    (props) => <ComposerTools {...props} />,
+    (props) => <ComposerTools {...props} remote={ctx.remote} />,
   ));
   ctx.slots.inject('conversation.input.overlay', () => ctx.slots.register(
     { name: 'conversation.input.overlay', id: 'content-rollback.panel', order: 10, locale: NS },
