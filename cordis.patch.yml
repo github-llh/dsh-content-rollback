@@ -1,0 +1,4 @@
+- insert:
+    - id: dsh-content-rollback
+      name: dsh-content-rollback
+      config: {}

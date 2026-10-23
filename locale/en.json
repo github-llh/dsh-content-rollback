@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Conversation Recovery",
+    "description": "Recover a sent message and resend it in the same DSH conversation: exact original text, attachments and byte-verified backups. No session is created or switched; tool side effects are not reverted."
+  }
+}
