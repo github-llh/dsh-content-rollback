@@ -72,6 +72,6 @@ export function validateRequest(request) {
 }
 
 export function publicOperation(operation) {
-  const { version, scope, token, sourceSessionId, seq, state, mode, route, error, updatedAt } = operation;
-  return { version, scope, token, sourceSessionId, seq, state, mode, route, error, updatedAt };
+  const { version, scope, token, sourceSessionId, seq, time, state, mode, route, error, updatedAt } = operation;
+  return { version, scope, token, sourceSessionId, seq, time, state, mode, route, error, updatedAt };
 }

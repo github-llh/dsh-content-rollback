@@ -63,6 +63,7 @@ export class RecoveryService {
         hasMore: visible.length > page.length,
         pending: pending && this.host.allowed(pending.sourceSessionId) ? publicOperation(pending) : null,
         archiveIssue: this.host.archiveIssue?.(sessionId) ?? null,
+        activity: this.host.activity?.(sessionId) ?? { running: false, queued: 0 },
         route: this.host.route(sessionId),
       };
     } finally { observation[Symbol.dispose](); }
@@ -82,6 +83,7 @@ export class RecoveryService {
       signal?.throwIfAborted();
       const operation = {
         version: 2, scope: 'same-session', token: randomUUID(), sourceSessionId: sessionId, seq,
+        time: plan.event.time,
         state: 'prepared', fingerprint: plan.fingerprint, route: this.host.route(sessionId),
         toolCalls: plan.toolCalls, hasPathReferences: plan.hasPathReferences, updatedAt: Date.now(),
       };

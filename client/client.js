@@ -182,6 +182,28 @@ var translations = {
     edit: "\u53D6\u56DE\u7F16\u8F91",
     send: "\u5728\u5F53\u524D\u4F1A\u8BDD\u53D1\u9001",
     working: "\u5904\u7406\u4E2D\u2026",
+    you: "\u4F60",
+    editTitle: "\u7F16\u8F91\u6D88\u606F",
+    recoveredTitle: "\u627E\u56DE\u7684\u6D88\u606F",
+    emptyHint: "\u53D1\u9001\u4E00\u6761\u6D88\u606F\u540E\uFF0C\u5C31\u80FD\u5728\u8FD9\u91CC\u627E\u56DE\u5B83\u7684\u539F\u6587\u4E0E\u9644\u4EF6\u3002",
+    pendingResume: "\u4E0A\u6B21\u56DE\u6EAF\u5C1A\u672A\u5B8C\u6210",
+    editAction: "\u7F16\u8F91\u540E\u91CD\u53D1",
+    continueEdit: "\u7EE7\u7EED\u7F16\u8F91",
+    finishEdit: "\u5B8C\u6210\u7F16\u8F91",
+    sendEdited: "\u53D1\u9001\u4FEE\u6539",
+    retryOriginal: "\u539F\u6837\u91CD\u53D1",
+    retryHint: "\u53D1\u9001\u539F\u59CB\u5185\u5BB9\uFF0C\u5FFD\u7565\u5F53\u524D\u4FEE\u6539",
+    impact: "\u5F71\u54CD\u4E0E\u9650\u5236",
+    toolChip: "\u542B {count} \u6B21\u5DE5\u5177\u8C03\u7528",
+    stopFirst: "\u5148\u505C\u6B62\u5F53\u524D\u751F\u6210",
+    stopHint: "\u4E0D\u4F1A\u6E05\u7A7A\u6392\u961F\u6D88\u606F",
+    queueChip: "\u6709 {count} \u6761\u6392\u961F\u6D88\u606F\uFF0C\u53D1\u9001\u524D\u8BF7\u5148\u5904\u7406",
+    editHint: "{modifier}\u21B5 \u53D1\u9001 \xB7 Esc \u5B8C\u6210",
+    sentToSession: "\u5DF2\u53D1\u9001\u5230\u5F53\u524D\u4F1A\u8BDD",
+    sendingState: "\u6B63\u5728\u63D0\u4EA4\u2026",
+    uncertainTitle: "\u53D1\u9001\u7ED3\u679C\u5F85\u6838\u5BF9",
+    checkResult: "\u6838\u5BF9\u7ED3\u679C",
+    backList: "\u8FD4\u56DE\u6D88\u606F\u5217\u8868",
     original: "\u539F\u59CB\u53D1\u9001\u5185\u5BB9",
     saved: "\u5DF2\u4FDD\u5B58",
     saving: "\u4FDD\u5B58\u4E2D\u2026",
@@ -260,6 +282,28 @@ var translations = {
     edit: "Retrieve for editing",
     send: "Send in this conversation",
     working: "Working\u2026",
+    you: "You",
+    editTitle: "Edit message",
+    recoveredTitle: "Recovered message",
+    emptyHint: "Once you send a message, its text and attachments can be recovered here.",
+    pendingResume: "An earlier recovery was left unfinished",
+    editAction: "Edit & resend",
+    continueEdit: "Continue editing",
+    finishEdit: "Done editing",
+    sendEdited: "Send changes",
+    retryOriginal: "Retry unchanged",
+    retryHint: "Send the original content and ignore current edits",
+    impact: "Impact & limits",
+    toolChip: "{count} tool calls",
+    stopFirst: "Stop the current generation first",
+    stopHint: "Queued input is kept",
+    queueChip: "{count} queued messages \u2014 clear the queue before sending",
+    editHint: "{modifier}\u21B5 send \xB7 Esc done",
+    sentToSession: "Sent in this conversation",
+    sendingState: "Submitting\u2026",
+    uncertainTitle: "Send result needs checking",
+    checkResult: "Check result",
+    backList: "Back to messages",
     original: "Original sent content",
     saved: "Saved",
     saving: "Saving\u2026",
@@ -327,12 +371,17 @@ var translations = {
 
 // src/client/styles.js
 var css = `
-.dcr{--dcr-radius:10px;--dcr-quote-bg:color-mix(in srgb,var(--dsw-alias-label-primary) 5%,transparent);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;line-height:1.55;min-width:0;width:100%;box-sizing:border-box}
+.dcr{--dcr-radius:10px;--dcr-soft:color-mix(in srgb,var(--dsw-alias-label-primary) 4%,transparent);--dcr-softer:color-mix(in srgb,var(--dsw-alias-label-primary) 2.5%,transparent);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;line-height:1.55;min-width:0;width:100%;box-sizing:border-box}
 .dcr *{box-sizing:border-box}.dcr button,.dcr textarea{font:inherit;color:inherit}
 .dcr button{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:transparent;padding:5px 10px;cursor:pointer;min-height:30px;transition:background .15s ease,border-color .15s ease,opacity .15s ease}
 .dcr button:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}.dcr button:disabled{opacity:.45;cursor:default}
 .dcr button.dcr-primary{background:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-primary);color:var(--dsw-alias-bg-base);font-weight:600}
-.dcr button.dcr-primary:hover:not(:disabled){background:var(--dsw-alias-label-primary);opacity:.88}
+.dcr button.dcr-primary:hover:not(:disabled){background:var(--dsw-alias-label-primary);opacity:.9}
+.dcr button.dcr-ghost{border-color:transparent;color:var(--dsw-alias-label-secondary);padding-left:7px;padding-right:7px}
+.dcr button.dcr-ghost:hover:not(:disabled){color:var(--dsw-alias-label-primary)}
+.dcr button.dcr-link{border:0;background:none;padding:0;min-height:0;color:var(--dsw-alias-label-secondary);font-size:11px}
+.dcr button.dcr-link:hover:not(:disabled){background:none;color:var(--dsw-alias-label-primary);text-decoration:underline}
+.dcr button.dcr-iconbtn{width:28px;height:28px;min-height:28px;padding:0;border-color:transparent;color:var(--dsw-alias-label-secondary);font-size:16px;line-height:1}
 .dcr button:focus-visible,.dcr textarea:focus-visible,.dcr input:focus-visible{outline:2px solid var(--dsw-focus-ring-color);outline-offset:2px}
 .dcr-bar{display:flex;align-items:center;gap:8px;padding:4px 2px}.dcr-bar>button:first-child{border-color:transparent;padding-left:4px;padding-right:6px}
 .dcr-bar-actions{display:flex;align-items:center;gap:6px;margin-left:auto;min-width:0}
@@ -340,39 +389,65 @@ var css = `
 .dcr-quote-trigger{border-style:dashed!important;color:var(--dsw-alias-label-secondary);white-space:nowrap;max-width:46%;overflow:hidden;text-overflow:ellipsis}
 .dcr-panel{border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-base);box-shadow:var(--dsw-elevation-panel,0 1px 2px rgba(0,0,0,.04));margin:4px 0 9px;overflow:hidden;animation:dcr-in .16s ease}
 @keyframes dcr-in{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
-.dcr-head,.dcr-foot{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:11px 14px;flex-wrap:wrap}.dcr-head{border-bottom:1px solid var(--dsw-alias-border-l1)}
-.dcr-head h3{font-size:12px;margin:0;font-weight:600;letter-spacing:.01em}
-.dcr-head .dcr-actions button{border-color:transparent;min-height:26px;padding:3px 7px;color:var(--dsw-alias-label-secondary)}
-.dcr-scroll{max-height:min(48vh,420px);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+.dcr-head{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--dsw-alias-border-l1);flex-wrap:wrap}
+.dcr-head-main{display:flex;align-items:center;gap:6px;min-width:0}.dcr-head h3{font-size:12px;margin:0;font-weight:600;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dcr-head .dcr-actions{gap:4px}
+.dcr-scroll{max-height:min(52vh,460px);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
 .dcr-list{list-style:none;margin:0;padding:5px}.dcr-list li{margin:2px 0}
-.dcr-list button{display:block;width:100%;text-align:left;border-color:transparent;padding:9px 10px;border-radius:8px}
+.dcr-list button{position:relative;display:block;width:100%;text-align:left;border-color:transparent;padding:9px 30px 9px 10px;border-radius:8px}
 .dcr-list button:hover:not(:disabled){border-color:var(--dsw-alias-border-l1)}
+.dcr-list-chevron{position:absolute;right:9px;top:50%;transform:translateY(-50%);color:var(--dsw-alias-label-tertiary);opacity:0;transition:opacity .15s ease}
+.dcr-list button:hover .dcr-list-chevron,.dcr-list button:focus-visible .dcr-list-chevron{opacity:1}
 .dcr-preview{white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .dcr-meta{display:flex;gap:7px;align-items:center;flex-wrap:wrap;color:var(--dsw-alias-label-tertiary);font-size:11px;margin-top:4px}
 .dcr-body{padding:12px 14px}.dcr-note{color:var(--dsw-alias-label-secondary);margin:0 0 9px;font-size:11px;overflow-wrap:anywhere}
-.dcr-error{color:var(--dsw-alias-state-error-primary);padding:9px 14px;overflow-wrap:anywhere;font-size:11px}
+.dcr-error{color:var(--dsw-alias-state-error-primary);padding:9px 14px;overflow-wrap:anywhere;font-size:11px}.dcr-error .dcr-link{margin-left:8px}
 .dcr-warning{border-left:2px solid var(--dsw-alias-border-l1);padding-left:10px}
-.dcr-block{display:block;margin:9px 0}.dcr-block-label{display:block;font-size:11px;color:var(--dsw-alias-label-secondary);margin-bottom:4px}
-.dcr textarea{display:block;width:100%;min-height:76px;max-height:240px;resize:vertical;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-base);padding:9px 10px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}
+.dcr-message{border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dcr-softer);padding:11px 12px}
+.dcr-message-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.dcr-avatar{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--dcr-soft);color:var(--dsw-alias-label-secondary);font-size:11px;flex:none}
+.dcr-message-meta{display:flex;flex-direction:column;line-height:1.25;min-width:0}.dcr-message-meta strong{font-size:11.5px;font-weight:600}.dcr-message-meta span{color:var(--dsw-alias-label-tertiary);font-size:10.5px}
+.dcr-warn-chip{margin-left:auto;border:1px solid var(--dsw-alias-border-l1);border-radius:999px;padding:2px 8px;color:var(--dsw-alias-label-secondary);font-size:10.5px;white-space:nowrap}
+.dcr-message-body{display:flex;flex-direction:column;gap:8px}
+.dcr-message-text{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;font-size:12.5px}
+.dcr-textblock{display:flex;flex-direction:column;gap:3px}
+.dcr-textlabel{font-size:10.5px;color:var(--dsw-alias-label-tertiary)}
+.dcr textarea{display:block;width:100%;min-height:44px;max-height:240px;resize:none;overflow:auto;border:1px solid var(--dsw-alias-border-l1);border-radius:9px;background:var(--dsw-alias-bg-base);padding:8px 10px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65}
 .dcr textarea::placeholder{color:var(--dsw-alias-label-tertiary)}
-.dcr-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--dsw-alias-border-l1);border-radius:7px;padding:5px 9px;margin:3px 4px 3px 0;max-width:100%;overflow-wrap:anywhere}.dcr-chip span{min-width:0}
+.dcr-edit-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:9px;padding-top:8px;border-top:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-tertiary);font-size:10.5px}
+.dcr-edit-tools [role="status"]{margin-right:auto}
+.dcr-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--dsw-alias-border-l1);border-radius:7px;padding:5px 9px;max-width:100%;overflow-wrap:anywhere}.dcr-chip span{min-width:0}
 .dcr-actions{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
-.dcr-foot{border-top:1px solid var(--dsw-alias-border-l1)}
+.dcr-foot{border-top:1px solid var(--dsw-alias-border-l1);display:flex;gap:10px;align-items:center;justify-content:space-between;padding:10px 14px;flex-wrap:wrap}
+.dcr-footmeta{display:flex;flex-direction:column;gap:2px;min-width:0}.dcr-model{color:var(--dsw-alias-label-secondary);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
+.dcr-hint{color:var(--dsw-alias-label-tertiary);font-size:10.5px;font-variant-numeric:tabular-nums}
+.dcr-details{margin:11px 0 0;border-top:1px solid var(--dsw-alias-border-l1);padding-top:9px}
+.dcr-details summary{display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--dsw-alias-label-secondary);font-size:11px;list-style:none;user-select:none}
+.dcr-details summary::-webkit-details-marker{display:none}.dcr-details summary svg{transition:transform .15s ease}
+.dcr-details[open] summary svg{transform:rotate(90deg)}
+.dcr-details .dcr-note{margin-top:8px;margin-bottom:0}.dcr-details .dcr-note+.dcr-note{margin-top:6px}
 .dcr-check{display:flex;align-items:flex-start;gap:8px;font-size:11px;color:var(--dsw-alias-label-secondary);margin:11px 0 0}
-.dcr-check input{margin-top:3px;accent-color:var(--dsw-alias-label-primary)}
-.dcr-empty{text-align:center;padding:26px 14px;color:var(--dsw-alias-label-secondary)}
-.dcr-status{padding:12px 14px;overflow-wrap:anywhere}.dcr-status p{margin:0 0 8px}
-.dcr-notice{margin:10px 14px 0;padding:7px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;color:var(--dsw-alias-label-secondary);font-size:11px;animation:dcr-in .16s ease}
+.dcr-check input{margin-top:3px;accent-color:var(--dsw-alias-label-primary)}.dcr-check span{display:flex;flex-direction:column;gap:1px}.dcr-check small{color:var(--dsw-alias-label-tertiary);font-size:10.5px}
+.dcr-status{padding:12px 14px}.dcr-status-card{display:flex;flex-direction:column;gap:9px;background:var(--dcr-softer);border-top:1px solid var(--dsw-alias-border-l1)}
+.dcr-status-line{display:flex;gap:8px;align-items:flex-start}.dcr-status-line strong{font-size:11.5px}.dcr-status-line p{margin:2px 0 0;color:var(--dsw-alias-label-secondary);font-size:11px}
+.dcr-ok{color:var(--dsw-alias-label-primary);display:inline-flex}.dcr-pending-icon{color:var(--dsw-alias-label-secondary);display:inline-flex}
+.dcr-empty{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;padding:28px 16px;color:var(--dsw-alias-label-secondary)}
+.dcr-empty svg{color:var(--dsw-alias-label-tertiary)}.dcr-empty strong{font-size:12px;color:var(--dsw-alias-label-primary)}.dcr-empty span{font-size:11px;max-width:300px}
+.dcr-banner{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border-bottom:1px solid var(--dsw-alias-border-l1);background:var(--dcr-softer);font-size:11px}
+.dcr-banner div{display:flex;gap:7px;align-items:baseline;min-width:0}.dcr-banner strong{font-weight:600}
+.dcr-skeleton{display:flex;flex-direction:column;gap:9px;padding:14px}.dcr-skeleton span{display:block;height:34px;border-radius:8px;background:var(--dcr-soft);animation:dcr-pulse 1.4s ease-in-out infinite}
+.dcr-skeleton span:nth-child(2){width:86%;animation-delay:.15s}.dcr-skeleton span:nth-child(3){width:72%;animation-delay:.3s}
+@keyframes dcr-pulse{0%,100%{opacity:.55}50%{opacity:1}}
+.dcr-notice{margin:10px 14px 0;padding:7px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;color:var(--dsw-alias-label-secondary);font-size:11px;display:flex;align-items:center;gap:6px;animation:dcr-in .16s ease}
 .dcr-quote-prompt{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 14px;border-bottom:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);font-size:11px}
-.dcr-reply{border-bottom:1px solid var(--dsw-alias-border-l1);padding:12px 14px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 2.5%,transparent)}
-.dcr-quote{border:1px solid var(--dsw-alias-border-l1);border-left:3px solid var(--dsw-alias-label-tertiary);border-radius:8px;background:var(--dcr-quote-bg);margin-bottom:9px;overflow:hidden}
+.dcr-reply{border-bottom:1px solid var(--dsw-alias-border-l1);padding:12px 14px;background:var(--dcr-softer)}
+.dcr-quote{border:1px solid var(--dsw-alias-border-l1);border-left:3px solid var(--dsw-alias-label-tertiary);border-radius:8px;background:var(--dcr-soft);margin-bottom:9px;overflow:hidden}
 .dcr-quote-head{display:flex;align-items:center;gap:6px;padding:6px 9px;color:var(--dsw-alias-label-secondary);font-size:11px}
 .dcr-quote-head span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dcr-quote-head button{border:0;min-height:22px;padding:0 4px;color:var(--dsw-alias-label-tertiary)}
 .dcr-quote-body{margin:0;padding:0 10px 9px;max-height:118px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--dsw-alias-label-secondary);font-size:11.5px;line-height:1.6;overscroll-behavior:contain}
 .dcr-reply-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;flex-wrap:wrap}
-.dcr-hint{color:var(--dsw-alias-label-tertiary);font-size:10.5px;font-variant-numeric:tabular-nums}
-@media(max-width:520px){.dcr-tagline{display:none}.dcr-head,.dcr-foot,.dcr-body,.dcr-reply{padding:10px}.dcr-foot .dcr-actions{width:100%}.dcr-foot button{flex:1}.dcr-scroll{max-height:42vh}.dcr-quote-trigger{max-width:52%}}
+@media(max-width:520px){.dcr-tagline{display:none}.dcr-head,.dcr-foot,.dcr-body,.dcr-reply{padding:10px}.dcr-foot .dcr-actions{width:100%}.dcr-foot .dcr-actions button{flex:1}.dcr-scroll{max-height:46vh}.dcr-quote-trigger{max-width:52%}.dcr-message-meta span{white-space:normal}.dcr-model{max-width:180px}}
 @media(prefers-reduced-motion:reduce){.dcr *{animation:none!important;transition:none!important;scroll-behavior:auto}}
 `;
 
@@ -380,7 +455,7 @@ var css = `
 var NS = "dsh-content-rollback";
 var inject = ["slots", "locale", "remote", "remote.commands"];
 var QUOTE_LIMIT = 4e3;
-var PRIMARY_MODIFIER = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgentData?.platform ?? navigator.platform ?? "") ? "\u2318" : "Ctrl";
+var PRIMARY_MODIFIER = typeof navigator !== "undefined" && /mac|iphone|ipad/i.test(navigator.userAgentData?.platform ?? navigator.platform ?? "") ? "\u2318" : "Ctrl";
 function errorText(t, code) {
   return translations.en[`errors.${code}`] ? t(`errors.${code}`) : t("error", { code });
 }
@@ -393,11 +468,32 @@ function newRequestId() {
   const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
-function RecoveryIcon() {
-  return /* @__PURE__ */ import_react.default.createElement("svg", { width: "15", height: "15", viewBox: "0 0 24 24", fill: "none", "aria-hidden": "true" }, /* @__PURE__ */ import_react.default.createElement("path", { d: "M5 8h10a6 6 0 0 1 0 12H9M5 8l4-4M5 8l4 4", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round", strokeLinejoin: "round" }));
-}
-function QuoteIcon() {
-  return /* @__PURE__ */ import_react.default.createElement("svg", { width: "14", height: "14", viewBox: "0 0 24 24", fill: "none", "aria-hidden": "true" }, /* @__PURE__ */ import_react.default.createElement("path", { d: "M9 7H5v6h4c0 2-1 3-3 4M19 7h-4v6h4c0 2-1 3-3 4", stroke: "currentColor", strokeWidth: "1.7", strokeLinecap: "round", strokeLinejoin: "round" }));
+var Icon = ({ children, size = 15 }) => /* @__PURE__ */ import_react.default.createElement("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "none", "aria-hidden": "true" }, children);
+var RecoveryIcon = () => /* @__PURE__ */ import_react.default.createElement(Icon, null, /* @__PURE__ */ import_react.default.createElement("path", { d: "M5 8h10a6 6 0 0 1 0 12H9M5 8l4-4M5 8l4 4", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round", strokeLinejoin: "round" }));
+var QuoteIcon = () => /* @__PURE__ */ import_react.default.createElement(Icon, { size: 14 }, /* @__PURE__ */ import_react.default.createElement("path", { d: "M9 7H5v6h4c0 2-1 3-3 4M19 7h-4v6h4c0 2-1 3-3 4", stroke: "currentColor", strokeWidth: "1.7", strokeLinecap: "round", strokeLinejoin: "round" }));
+var RetryIcon = () => /* @__PURE__ */ import_react.default.createElement(Icon, { size: 14 }, /* @__PURE__ */ import_react.default.createElement("path", { d: "M4 11a8 8 0 1 1 2.3 5.7M4 5v6h6", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round", strokeLinejoin: "round" }));
+var EditIcon = () => /* @__PURE__ */ import_react.default.createElement(Icon, { size: 14 }, /* @__PURE__ */ import_react.default.createElement("path", { d: "M4 20h4l11-11-4-4L4 16v4Zm9-13 4 4", stroke: "currentColor", strokeWidth: "1.7", strokeLinecap: "round", strokeLinejoin: "round" }));
+var SendIcon = () => /* @__PURE__ */ import_react.default.createElement(Icon, { size: 14 }, /* @__PURE__ */ import_react.default.createElement("path", { d: "M12 19V5m0 0-6 6m6-6 6 6", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round", strokeLinejoin: "round" }));
+var CheckIcon = () => /* @__PURE__ */ import_react.default.createElement(Icon, { size: 16 }, /* @__PURE__ */ import_react.default.createElement("path", { d: "m5 12 4.5 4.5L19 7", stroke: "currentColor", strokeWidth: "1.9", strokeLinecap: "round", strokeLinejoin: "round" }));
+var InfoIcon = () => /* @__PURE__ */ import_react.default.createElement(Icon, { size: 16 }, /* @__PURE__ */ import_react.default.createElement("circle", { cx: "12", cy: "12", r: "8.5", stroke: "currentColor", strokeWidth: "1.7" }), /* @__PURE__ */ import_react.default.createElement("path", { d: "M12 11v5m0-8h.01", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round" }));
+var ChevronIcon = () => /* @__PURE__ */ import_react.default.createElement(Icon, { size: 13 }, /* @__PURE__ */ import_react.default.createElement("path", { d: "m9 6 6 6-6 6", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round", strokeLinejoin: "round" }));
+function AutoTextarea({ value, onChange, readOnly, label, autoFocus, placeholder }) {
+  const ref = (0, import_react.useRef)(null);
+  (0, import_react.useLayoutEffect)(() => {
+    const element = ref.current;
+    if (!element) return;
+    element.style.height = "auto";
+    element.style.height = `${Math.min(element.scrollHeight, 240)}px`;
+  }, [value]);
+  (0, import_react.useEffect)(() => {
+    if (!autoFocus) return;
+    const element = ref.current;
+    if (element) {
+      element.focus();
+      element.setSelectionRange(element.value.length, element.value.length);
+    }
+  }, [autoFocus]);
+  return /* @__PURE__ */ import_react.default.createElement("textarea", { ref, rows: 1, value, readOnly, "aria-label": label, placeholder, onChange, spellCheck: false });
 }
 function useSelection() {
   const [selection, setSelection] = (0, import_react.useState)("");
@@ -432,10 +528,6 @@ function QuoteReply({ quote, request, onClose, onSent, t }) {
   const [busy, setBusy] = (0, import_react.useState)(false);
   const [error, setError] = (0, import_react.useState)(null);
   const requestId = (0, import_react.useRef)(newRequestId());
-  const area = (0, import_react.useRef)(null);
-  (0, import_react.useEffect)(() => {
-    area.current?.focus();
-  }, []);
   async function send() {
     if (busy || !text.trim()) return;
     setBusy(true);
@@ -458,7 +550,7 @@ function QuoteReply({ quote, request, onClose, onSent, t }) {
       event.preventDefault();
       void send();
     }
-  } }, /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-quote" }, /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-quote-head" }, /* @__PURE__ */ import_react.default.createElement(QuoteIcon, null), /* @__PURE__ */ import_react.default.createElement("span", null, t("quotedSelection", { count: quote.length })), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", onClick: onClose, "aria-label": t("close") }, "\xD7")), /* @__PURE__ */ import_react.default.createElement("blockquote", { className: "dcr-quote-body" }, quote)), /* @__PURE__ */ import_react.default.createElement("textarea", { ref: area, value: text, onChange: (event) => setText(event.target.value), placeholder: t("replyPlaceholder"), "aria-label": t("replyPlaceholder"), spellCheck: false }), error && /* @__PURE__ */ import_react.default.createElement("p", { className: "dcr-error", role: "alert" }, errorText(t, error)), /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-reply-foot" }, /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-hint" }, PRIMARY_MODIFIER, "\u21B5 ", t("sendHint"), " \xB7 Esc ", t("cancelHint")), /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-actions" }, /* @__PURE__ */ import_react.default.createElement("button", { type: "button", onClick: onClose }, t("cancel")), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-primary", disabled: busy || !text.trim(), onClick: () => void send() }, t(busy ? "working" : "replySend")))));
+  } }, /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-quote" }, /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-quote-head" }, /* @__PURE__ */ import_react.default.createElement(QuoteIcon, null), /* @__PURE__ */ import_react.default.createElement("span", null, t("quotedSelection", { count: quote.length })), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", onClick: onClose, "aria-label": t("close") }, "\xD7")), /* @__PURE__ */ import_react.default.createElement("blockquote", { className: "dcr-quote-body" }, quote)), /* @__PURE__ */ import_react.default.createElement(AutoTextarea, { value: text, onChange: (event) => setText(event.target.value), label: t("replyPlaceholder"), placeholder: t("replyPlaceholder"), autoFocus: true }), error && /* @__PURE__ */ import_react.default.createElement("p", { className: "dcr-error", role: "alert" }, errorText(t, error)), /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-reply-foot" }, /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-hint" }, PRIMARY_MODIFIER, "\u21B5 ", t("sendHint"), " \xB7 Esc ", t("cancelHint")), /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-actions" }, /* @__PURE__ */ import_react.default.createElement("button", { type: "button", onClick: onClose }, t("cancel")), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-primary", disabled: busy || !text.trim(), onClick: () => void send() }, /* @__PURE__ */ import_react.default.createElement(SendIcon, null), t(busy ? "working" : "replySend")))));
 }
 function Panel({ sessionId, remote, t }) {
   const [expanded, setExpanded] = (0, import_react.useState)(false);
@@ -471,6 +563,7 @@ function Panel({ sessionId, remote, t }) {
   const [notice, setNotice] = (0, import_react.useState)(null);
   const [saveState, setSaveState] = (0, import_react.useState)("saved");
   const [stop, setStop] = (0, import_react.useState)(false);
+  const [editing, setEditing] = (0, import_react.useState)(false);
   const [conflict, setConflict] = (0, import_react.useState)(null);
   const [quote, setQuote] = (0, import_react.useState)("");
   const [selection, setSelection] = useSelection();
@@ -560,6 +653,7 @@ function Panel({ sessionId, remote, t }) {
     }
     setContent(next);
     setStop(false);
+    setEditing(result.state === "ready");
     setExpanded(true);
   }
   async function choose(seq) {
@@ -589,6 +683,21 @@ function Panel({ sessionId, remote, t }) {
     setContent(next);
     persist(next);
   }
+  async function beginEdit() {
+    if (selected.state !== "prepared") {
+      setEditing(true);
+      return;
+    }
+    const result = await request({ action: "execute", token: selected.token, mode: "edit" });
+    if (!active.current) return;
+    setSelected((previous) => ({ ...previous, ...result }));
+    if (result.error) {
+      setError(result.error);
+      setErrorDetail(null);
+      return;
+    }
+    setEditing(true);
+  }
   async function execute(mode) {
     await writer.current?.flush();
     const result = await request({ action: "execute", token: selected.token, mode, stop, route: listing?.route, ...mode === "send" ? { revision: writer.current?.revision ?? 0 } : {} });
@@ -598,14 +707,21 @@ function Panel({ sessionId, remote, t }) {
       setError(result.error);
       setErrorDetail(null);
     }
+    if (["accepted", "uncertain", "sending"].includes(result.state)) setEditing(false);
     await refresh();
   }
   async function check() {
     const result = await request({ action: "status", token: selected.token });
     if (active.current) setSelected((previous) => ({ ...previous, ...result }));
   }
+  function backToList() {
+    setEditing(false);
+    setSelected(null);
+    void run(() => refresh());
+  }
   const finished = selected && ["accepted", "sending", "uncertain"].includes(selected.state);
   const canEdit = selected?.state === "ready";
+  const isEditing = Boolean(editing && canEdit);
   const close = () => {
     setExpanded(false);
     trigger.current?.focus();
@@ -614,22 +730,35 @@ function Panel({ sessionId, remote, t }) {
     setQuote("");
     setNotice(t("replySent"));
   };
+  const activity = listing?.activity;
+  const firstTextIndex = content.findIndex((part) => part.type === "text");
+  const textCount = content.filter((part) => part.type === "text").length;
+  let textIndex = 0;
   return /* @__PURE__ */ import_react.default.createElement("section", { className: "dcr", "aria-label": t("title"), onKeyDown: (event) => {
-    if (event.key === "Escape" && expanded && !quote && !event.nativeEvent.isComposing) {
-      event.stopPropagation();
-      close();
+    if (!expanded) return;
+    if (event.key === "Escape" && !quote) {
+      if (isEditing) {
+        event.stopPropagation();
+        setEditing(false);
+      } else {
+        event.stopPropagation();
+        close();
+      }
+    } else if (isEditing && event.key === "Enter" && (event.metaKey || event.ctrlKey) && !busy && !conflict && saveState !== "saveFailed") {
+      event.preventDefault();
+      void run(() => execute("send"));
     }
   } }, /* @__PURE__ */ import_react.default.createElement("style", null, css), /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-bar" }, /* @__PURE__ */ import_react.default.createElement("button", { ref: trigger, type: "button", "aria-expanded": expanded, onClick: () => {
     setExpanded(!expanded);
     if (!expanded) void run(() => refresh());
-  } }, /* @__PURE__ */ import_react.default.createElement(RecoveryIcon, null), t("title")), /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-tagline" }, t("tagline")), /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-bar-actions" }, selection && /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-quote-trigger", title: t("quoteHint"), onPointerDown: (event) => event.preventDefault(), onClick: quoteSelection }, /* @__PURE__ */ import_react.default.createElement(QuoteIcon, null), t("quoteSelection")), !expanded && listing?.pending && /* @__PURE__ */ import_react.default.createElement("button", { type: "button", disabled: busy, onClick: () => void run(() => resume(listing.pending.token)) }, t("resume")))), expanded && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-panel", "aria-busy": busy }, /* @__PURE__ */ import_react.default.createElement("header", { className: "dcr-head" }, /* @__PURE__ */ import_react.default.createElement("h3", null, t(selected ? "original" : "history")), /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-actions" }, selected && /* @__PURE__ */ import_react.default.createElement("button", { type: "button", disabled: busy || saveState === "saving", onClick: () => void run(async () => {
-    await writer.current?.flush();
-    setSelected(null);
-    await refresh();
-  }) }, t("back")), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", disabled: busy, onClick: () => void run(() => refresh()) }, t("refresh")), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", onClick: close, "aria-label": t("close") }, "\xD7"))), quote && /* @__PURE__ */ import_react.default.createElement(QuoteReply, { quote, request, onClose: () => setQuote(""), onSent: sendQuote, t }), notice && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-notice", role: "status" }, notice), selection && !quote && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-quote-prompt" }, /* @__PURE__ */ import_react.default.createElement("span", null, t("selectionAvailable", { count: selection.length })), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", onPointerDown: (event) => event.preventDefault(), onClick: quoteSelection }, t("quoteSelection"))), error && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-error", role: "alert" }, errorText(t, error), !translations.en[`errors.${error}`] && errorDetail && /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-muted" }, " \xB7 ", errorDetail), error === "DRAFT_CONFLICT" && selected && /* @__PURE__ */ import_react.default.createElement("button", { type: "button", onClick: () => void run(async () => {
+  } }, /* @__PURE__ */ import_react.default.createElement(RecoveryIcon, null), t("title")), /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-tagline" }, t("tagline")), /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-bar-actions" }, selection && /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-quote-trigger", title: t("quoteHint"), onPointerDown: (event) => event.preventDefault(), onClick: quoteSelection }, /* @__PURE__ */ import_react.default.createElement(QuoteIcon, null), t("quoteSelection")), !expanded && listing?.pending && /* @__PURE__ */ import_react.default.createElement("button", { type: "button", disabled: busy, onClick: () => void run(() => resume(listing.pending.token)) }, t("resume")))), expanded && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-panel", "aria-busy": busy }, /* @__PURE__ */ import_react.default.createElement("header", { className: "dcr-head" }, /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-head-main" }, selected && /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-iconbtn", "aria-label": t("backList"), title: t("backList"), onClick: backToList }, "\u2190"), /* @__PURE__ */ import_react.default.createElement("h3", null, selected ? isEditing ? t("editTitle") : t("recoveredTitle") : t("history"))), /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-actions" }, /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-ghost", disabled: busy, onClick: () => void run(() => refresh()) }, t("refresh")), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-iconbtn", onClick: close, "aria-label": t("close") }, "\xD7"))), quote && /* @__PURE__ */ import_react.default.createElement(QuoteReply, { quote, request, onClose: () => setQuote(""), onSent: sendQuote, t }), notice && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-notice", role: "status" }, /* @__PURE__ */ import_react.default.createElement(CheckIcon, null), notice), selection && !quote && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-quote-prompt" }, /* @__PURE__ */ import_react.default.createElement("span", null, t("selectionAvailable", { count: selection.length })), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", onPointerDown: (event) => event.preventDefault(), onClick: quoteSelection }, /* @__PURE__ */ import_react.default.createElement(QuoteIcon, null), t("quoteSelection"))), error && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-error", role: "alert" }, errorText(t, error), !translations.en[`errors.${error}`] && errorDetail && /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-muted" }, " \xB7 ", errorDetail), error === "DRAFT_CONFLICT" && selected && /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-link", onClick: () => void run(async () => {
     const result = await request({ action: "load-draft", token: selected.token });
     if (active.current) applyDraft(result);
-  }) }, t("reloadDraft"))), listing?.archiveIssue && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-error", role: "status" }, t("backupIssue", { code: listing.archiveIssue })), !selected ? /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-scroll" }, listing?.pending && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-body" }, /* @__PURE__ */ import_react.default.createElement("button", { type: "button", disabled: busy, onClick: () => void run(() => resume(listing.pending.token)) }, t("resume"))), !listing ? /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-empty" }, t("loading")) : listing.items.length === 0 ? /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-empty" }, t("empty")) : /* @__PURE__ */ import_react.default.createElement("ol", { className: "dcr-list" }, listing.items.map((item) => /* @__PURE__ */ import_react.default.createElement("li", { key: item.seq }, /* @__PURE__ */ import_react.default.createElement("button", { type: "button", disabled: busy, onClick: () => void run(() => choose(item.seq)) }, /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-preview" }, item.preview || t("attachmentOnly")), /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-meta" }, /* @__PURE__ */ import_react.default.createElement("time", null, new Date(item.time).toLocaleString()), /* @__PURE__ */ import_react.default.createElement("span", null, "#", item.seq), item.attachments.map((part, i) => /* @__PURE__ */ import_react.default.createElement("span", { key: i }, part.name || t(part.type === "image" ? "image" : "file")))))))), listing?.hasMore && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-body" }, /* @__PURE__ */ import_react.default.createElement("button", { type: "button", disabled: busy, onClick: () => void run(() => refresh(true)) }, t("more")))) : /* @__PURE__ */ import_react.default.createElement(import_react.default.Fragment, null, /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-scroll" }, /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-body" }, /* @__PURE__ */ import_react.default.createElement("p", { className: "dcr-note" }, t("scope")), selected.toolCalls > 0 && /* @__PURE__ */ import_react.default.createElement("p", { className: "dcr-note dcr-warning" }, t("tools", { count: selected.toolCalls })), content.some((part) => part.type !== "text") && /* @__PURE__ */ import_react.default.createElement("p", { className: "dcr-note" }, t("media")), selected.hasPathReferences && /* @__PURE__ */ import_react.default.createElement("p", { className: "dcr-note dcr-warning" }, t("paths")), conflict && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-warning" }, /* @__PURE__ */ import_react.default.createElement("p", null, t("conflict")), /* @__PURE__ */ import_react.default.createElement("pre", { className: "dcr-preview" }, conflict.filter((part) => part.type === "text").map((part) => part.text).join("\n")), /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-actions" }, /* @__PURE__ */ import_react.default.createElement("button", { type: "button", onClick: () => {
+  }) }, t("reloadDraft"))), listing?.archiveIssue && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-error", role: "status" }, t("backupIssue", { code: listing.archiveIssue })), !selected ? /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-scroll" }, listing?.pending && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-banner" }, /* @__PURE__ */ import_react.default.createElement("div", null, /* @__PURE__ */ import_react.default.createElement("strong", null, t("pendingResume")), /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-muted" }, "#", listing.pending.seq)), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", disabled: busy, onClick: () => void run(() => resume(listing.pending.token)) }, t("resume"))), !listing ? /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-skeleton", "aria-label": t("loading") }, [0, 1, 2].map((row) => /* @__PURE__ */ import_react.default.createElement("span", { key: row }))) : listing.items.length === 0 ? /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-empty" }, /* @__PURE__ */ import_react.default.createElement(RecoveryIcon, null), /* @__PURE__ */ import_react.default.createElement("strong", null, t("empty")), /* @__PURE__ */ import_react.default.createElement("span", null, t("emptyHint"))) : /* @__PURE__ */ import_react.default.createElement("ol", { className: "dcr-list" }, listing.items.map((item) => /* @__PURE__ */ import_react.default.createElement("li", { key: item.seq }, /* @__PURE__ */ import_react.default.createElement("button", { type: "button", disabled: busy, onClick: () => void run(() => choose(item.seq)) }, /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-preview" }, item.preview || t("attachmentOnly")), /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-meta" }, /* @__PURE__ */ import_react.default.createElement("time", null, new Date(item.time).toLocaleString()), /* @__PURE__ */ import_react.default.createElement("span", null, "#", item.seq), item.attachments.map((part, i) => /* @__PURE__ */ import_react.default.createElement("span", { key: i }, part.name || t(part.type === "image" ? "image" : "file")))), /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-list-chevron" }, /* @__PURE__ */ import_react.default.createElement(ChevronIcon, null)))))), listing?.hasMore && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-body" }, /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-ghost", disabled: busy, onClick: () => void run(() => refresh(true)) }, t("more")))) : /* @__PURE__ */ import_react.default.createElement(import_react.default.Fragment, null, /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-scroll" }, /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-body" }, /* @__PURE__ */ import_react.default.createElement("article", { className: "dcr-message" }, /* @__PURE__ */ import_react.default.createElement("header", { className: "dcr-message-head" }, /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-avatar" }, t("you")), /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-message-meta" }, /* @__PURE__ */ import_react.default.createElement("strong", null, t("you")), /* @__PURE__ */ import_react.default.createElement("span", null, selected.time ? new Date(selected.time).toLocaleString() : "", selected.time ? " \xB7 " : "", "#", selected.seq)), selected.toolCalls > 0 && /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-warn-chip" }, t("toolChip", { count: selected.toolCalls }))), /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-message-body" }, content.map((part, index) => part.type === "text" ? /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-textblock", key: index }, isEditing && textCount > 1 && /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-textlabel" }, t("part", { index: ++textIndex })), isEditing ? /* @__PURE__ */ import_react.default.createElement(AutoTextarea, { value: part.text, readOnly: busy || Boolean(conflict), label: t("part", { index: textIndex || 1 }), autoFocus: index === firstTextIndex, onChange: (event) => edit(index, event.target.value) }) : /* @__PURE__ */ import_react.default.createElement("p", { className: "dcr-message-text" }, part.text)) : /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-chip", key: index }, /* @__PURE__ */ import_react.default.createElement("span", null, t(part.type === "image" ? "image" : "file"), " \xB7 ", part.attachment?.name || part.attachment?.attachmentId), /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-muted" }, part.attachment?.bytes ?? 0, " B")))), isEditing && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-edit-tools" }, /* @__PURE__ */ import_react.default.createElement("span", { role: "status", "aria-live": "polite" }, t(saveState)), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-link", disabled: busy || Boolean(conflict), onClick: () => {
+    const next = structuredClone(selected.originalContent);
+    setContent(next);
+    persist(next);
+  } }, t("restore")), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-link", onClick: () => setEditing(false) }, t("finishEdit"))), conflict && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-warning" }, /* @__PURE__ */ import_react.default.createElement("p", null, t("conflict")), /* @__PURE__ */ import_react.default.createElement("pre", { className: "dcr-preview" }, conflict.filter((part) => part.type === "text").map((part) => part.text).join("\n")), /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-actions" }, /* @__PURE__ */ import_react.default.createElement("button", { type: "button", onClick: () => {
     setContent(conflict);
     persist(conflict);
     setConflict(null);
@@ -640,11 +769,7 @@ function Panel({ sessionId, remote, t }) {
     }
     setConflict(null);
     setSaveState("saved");
-  } }, t("useSaved")))), content.map((part, index) => part.type === "text" ? /* @__PURE__ */ import_react.default.createElement("label", { className: "dcr-block", key: index }, /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-block-label" }, t("part", { index: index + 1 })), /* @__PURE__ */ import_react.default.createElement("textarea", { value: part.text, readOnly: !canEdit || busy || Boolean(conflict), onChange: (event) => edit(index, event.target.value), spellCheck: false })) : /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-chip", key: index }, /* @__PURE__ */ import_react.default.createElement("span", null, t(part.type === "image" ? "image" : "file"), " \xB7 ", part.attachment?.name || part.attachment?.attachmentId), /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-muted" }, part.attachment?.bytes ?? 0, " B"))), /* @__PURE__ */ import_react.default.createElement("p", { className: "dcr-note" }, t("preserveDraft")), canEdit && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-actions" }, /* @__PURE__ */ import_react.default.createElement("span", { role: "status", "aria-live": "polite" }, t(saveState)), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", disabled: busy || Boolean(conflict), onClick: () => {
-    const next = structuredClone(selected.originalContent);
-    setContent(next);
-    persist(next);
-  } }, t("restore")), saveState === "saveFailed" && !conflict && /* @__PURE__ */ import_react.default.createElement("button", { type: "button", onClick: () => persist(content) }, t("retrySave"))), !finished && /* @__PURE__ */ import_react.default.createElement("label", { className: "dcr-check" }, /* @__PURE__ */ import_react.default.createElement("input", { type: "checkbox", checked: stop, onChange: (event) => setStop(event.target.checked) }), t("stop"))), finished && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-status", role: "status" }, /* @__PURE__ */ import_react.default.createElement("p", null, t(selected.state === "accepted" ? "accepted" : "uncertain")), selected.state !== "accepted" && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-actions" }, /* @__PURE__ */ import_react.default.createElement("button", { type: "button", disabled: busy, onClick: () => void run(check) }, t("check"))))), !finished && /* @__PURE__ */ import_react.default.createElement("footer", { className: "dcr-foot" }, /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-muted" }, t("model"), " \xB7 ", listing?.route?.model ?? t("noModel")), /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-actions" }, selected.state === "prepared" && /* @__PURE__ */ import_react.default.createElement(import_react.default.Fragment, null, /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-primary", disabled: busy, onClick: () => void run(() => execute("retry")) }, t(busy ? "working" : "retry")), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", disabled: busy, onClick: () => void run(() => execute("edit")) }, t(busy ? "working" : "edit"))), canEdit && /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-primary", disabled: busy || saveState !== "saved", onClick: () => void run(() => execute("send")) }, t(busy ? "working" : "send")))))));
+  } }, t("useSaved"))))), !finished && /* @__PURE__ */ import_react.default.createElement("details", { className: "dcr-details" }, /* @__PURE__ */ import_react.default.createElement("summary", null, /* @__PURE__ */ import_react.default.createElement(ChevronIcon, null), t("impact")), /* @__PURE__ */ import_react.default.createElement("p", { className: "dcr-note" }, t("scope")), selected.toolCalls > 0 && /* @__PURE__ */ import_react.default.createElement("p", { className: "dcr-note dcr-warning" }, t("tools", { count: selected.toolCalls })), content.some((part) => part.type !== "text") && /* @__PURE__ */ import_react.default.createElement("p", { className: "dcr-note" }, t("media")), selected.hasPathReferences && /* @__PURE__ */ import_react.default.createElement("p", { className: "dcr-note dcr-warning" }, t("paths")), /* @__PURE__ */ import_react.default.createElement("p", { className: "dcr-note" }, t("preserveDraft"))), activity?.running && /* @__PURE__ */ import_react.default.createElement("label", { className: "dcr-check" }, /* @__PURE__ */ import_react.default.createElement("input", { type: "checkbox", checked: stop, onChange: (event) => setStop(event.target.checked) }), /* @__PURE__ */ import_react.default.createElement("span", null, t("stopFirst"), /* @__PURE__ */ import_react.default.createElement("small", null, t("stopHint")))), activity?.queued > 0 && /* @__PURE__ */ import_react.default.createElement("p", { className: "dcr-note dcr-warning" }, t("queueChip", { count: activity.queued }))), finished && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-status dcr-status-card", role: "status" }, /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-status-line" }, /* @__PURE__ */ import_react.default.createElement("span", { className: selected.state === "accepted" ? "dcr-ok" : "dcr-pending-icon" }, selected.state === "accepted" ? /* @__PURE__ */ import_react.default.createElement(CheckIcon, null) : /* @__PURE__ */ import_react.default.createElement(InfoIcon, null)), /* @__PURE__ */ import_react.default.createElement("div", null, /* @__PURE__ */ import_react.default.createElement("strong", null, t(selected.state === "accepted" ? "sentToSession" : selected.state === "sending" ? "sendingState" : "uncertainTitle")), selected.state === "uncertain" && /* @__PURE__ */ import_react.default.createElement("p", null, t("uncertain")), selected.state === "accepted" && /* @__PURE__ */ import_react.default.createElement("p", null, t("accepted")))), /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-actions" }, selected.state === "uncertain" && /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-ghost", disabled: busy, onClick: () => void run(check) }, t("checkResult")), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-primary", onClick: backToList }, t("backList"))))), !finished && /* @__PURE__ */ import_react.default.createElement("footer", { className: "dcr-foot" }, /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-footmeta" }, /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-model" }, t("model"), " \xB7 ", listing?.route?.model ?? t("noModel")), isEditing && /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-hint" }, t("editHint", { modifier: PRIMARY_MODIFIER }))), /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-actions" }, (selected.state === "prepared" || selected.state === "ready") && /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-ghost", title: t("retryHint"), disabled: busy, onClick: () => void run(() => execute("retry")) }, /* @__PURE__ */ import_react.default.createElement(RetryIcon, null), t("retryOriginal")), selected.state === "prepared" && /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-primary", disabled: busy, onClick: () => void run(beginEdit) }, /* @__PURE__ */ import_react.default.createElement(EditIcon, null), t(busy ? "working" : "editAction")), selected.state === "ready" && !isEditing && /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-ghost", disabled: busy, onClick: () => setEditing(true) }, /* @__PURE__ */ import_react.default.createElement(EditIcon, null), t("continueEdit")), selected.state === "ready" && /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-primary", disabled: busy || Boolean(conflict) || saveState === "saveFailed", onClick: () => void run(() => execute("send")) }, /* @__PURE__ */ import_react.default.createElement(SendIcon, null), t(busy ? "working" : "sendEdited")))))));
 }
 function apply(ctx) {
   ctx.effect(() => ctx.locale.register(NS, translations));

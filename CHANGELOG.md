@@ -13,6 +13,10 @@ All notable changes to this project are documented here. The format follows
 - Claude-inspired interaction polish: quoted-text card, keyboard-first reply
   composer (`Cmd/Ctrl+Enter`, `Esc`), inline status notices, calmer spacing,
   filled primary actions and light/dark theme tokens.
+- The same interaction language now applies to edit/retry: a recovered-message
+  card, inline auto-growing editor, `完成编辑` / `发送修改` / `原样重发`
+  hierarchy, collapsible impact details, and a stop-first control that only
+  appears while the conversation is actually generating.
 - `reply` operation with a client-generated UUID and Host-side message-id
   deduplication, so retries and double clicks never enqueue twice.
 - Same-origin, nonce-protected local HTTP route for panel operations. UI actions

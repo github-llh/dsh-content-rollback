@@ -56,6 +56,10 @@ export async function apply(ctx) {
       try { return (observation.events.at(-1)?.seq ?? -1) + 1; }
       finally { observation[Symbol.dispose](); }
     },
+    activity(id) {
+      const agent = ctx.agents.get(id);
+      return agent ? { running: agent.status === 'running', queued: agent.inbox.nextTurn.length + agent.inbox.nextStep.length } : { running: false, queued: 0 };
+    },
     flush: (id) => ctx.sessions.flush(requireAgent(id).session),
     async validateContent(content, route, signal) {
       await ctx.llm.resolveCallConfig(route);

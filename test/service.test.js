@@ -24,6 +24,7 @@ async function fixture(t) {
     attachments: {},
     observe: async (id) => ({ events: history.get(id) ?? [], [Symbol.dispose]() { calls.disposed++; } }),
     route: () => calls.route,
+    activity: () => ({ running: calls.running ?? false, queued: calls.queued ?? 0 }),
     quiesce: async (id, stop) => { if (stop) calls.stopped.push(id); },
     flush: async () => calls.flush?.() ?? true,
     cursor: async (id) => (history.get(id)?.at(-1)?.seq ?? -1) + 1,
@@ -211,12 +212,16 @@ test('quoted replies cannot target another session or leave out the text', async
 });
 
 test('pagination stays inside the requesting session', async (t) => {
-  const { api, history, event } = await fixture(t);
+  const { api, history, event, calls } = await fixture(t);
   history.set('source', Array.from({ length: 70 }, (_, i) => ({ ...event, seq: i })));
   const page = await api.request('source', { action: 'list' });
   assert.equal(page.items.length, 30);
   assert.equal(page.items[0].seq, 69);
   assert.equal(page.hasMore, true);
+  assert.deepEqual(page.activity, { running: false, queued: 0 });
+  calls.running = true;
+  calls.queued = 2;
+  assert.deepEqual((await api.request('source', { action: 'list' })).activity, { running: true, queued: 2 });
   assert.equal((await api.request('source', { action: 'list', before: 40 })).items[0].seq, 39);
   assert.equal((await api.request('other', { action: 'list' })).items.length, 1);
 });
