@@ -2,6 +2,7 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { Vault } from './src/host/vault.js';
 import { RecoveryService } from './src/host/service.js';
+import { createNonce, registerHttp } from './src/host/http.js';
 import { RecoveryError, digest, isUserMessage } from './src/host/domain.js';
 
 export const inject = ['commands', 'sessionQuery', 'sessions', 'agents', 'attachments', 'sessionProjections', 'agentDefaultModel', 'llm', 'remoteAccess'];
@@ -10,7 +11,12 @@ export async function apply(ctx) {
   const home = resolve(process.env.DSH_HOME || join(homedir(), '.dsh'));
   const profile = digest(process.env.DSH_PROFILE_DIR || process.env.DSH_PROFILE || 'default');
   const vault = new Vault(join(home, 'content-rollback', 'v1', profile));
-  await vault.init();
+  let storageError = null;
+  try { await vault.init(); }
+  catch (error) {
+    storageError = error;
+    ctx.logger.error(`content-rollback: local backup storage is unavailable: ${error.message}`);
+  }
   const archiveIssues = new Map();
   const requireAgent = (id) => {
     const agent = ctx.agents.get(id);
@@ -23,8 +29,8 @@ export async function apply(ctx) {
     allowed: (id) => ctx.remoteAccess.allows({ kind: 'session', id }),
     observe: (id, signal) => ctx.sessionQuery.observeSession(id, { signal, projectionMode: 'none' }),
     route(id) {
-      const agent = requireAgent(id);
-      const selection = ctx.sessionProjections.snapshot(agent.session, ['modelSelection']).values.modelSelection;
+      const agent = ctx.agents.get(id);
+      const selection = agent ? ctx.sessionProjections.snapshot(agent.session, ['modelSelection']).values.modelSelection : null;
       return selection?.next ?? selection?.lastUsed ?? ctx.agentDefaultModel.currentSelection();
     },
     async quiesce(id, stop, signal) {
@@ -74,16 +80,42 @@ export async function apply(ctx) {
         return agent ? [...agent.inbox.nextTurn, ...agent.inbox.nextStep].some((message) => message.id === messageId) : false;
       } finally { observation[Symbol.dispose](); }
     },
+    async reply(id, content, messageId, signal) {
+      if (!host.allowed(id)) throw new RecoveryError('FORBIDDEN');
+      const agent = requireAgent(id);
+      if (await host.hasMessage(id, messageId, signal)) {
+        if (!await ctx.sessions.flush(agent.session)) throw new RecoveryError('NO_PERSISTENCE');
+        return { accepted: true, messageId, duplicate: true };
+      }
+      agent.followup({ id: messageId, role: 'user', content, source: { kind: 'user' } });
+      if (!await ctx.sessions.flush(agent.session)) throw new RecoveryError('NO_PERSISTENCE');
+      return { accepted: true, messageId };
+    },
   };
   const api = new RecoveryService(host, vault);
+  const nonce = createNonce();
   const dispatch = async (sessionId, request, signal) => {
+    if (storageError) {
+      // A transient disk/permission failure must not force a DSH restart.
+      try { await vault.init(); storageError = null; } catch (error) { storageError = error; }
+      if (storageError) return { ok: false, error: { code: 'STORAGE_UNAVAILABLE', message: storageError.message } };
+    }
     try { return { ok: true, value: await api.request(sessionId, request, signal) }; }
-    catch (error) { return { ok: false, error: { code: error.code ?? 'RECOVERY_FAILED', message: error.message } }; }
+    catch (error) {
+      // Expected domain failures are user-facing; unexpected ones must still be diagnosable.
+      if (!(error instanceof RecoveryError)) ctx.logger.warn(`content-rollback: ${request.action} failed: ${error?.stack ?? error}`);
+      return { ok: false, error: { code: error.code ?? 'RECOVERY_FAILED', message: error.message } };
+    }
   };
+  // UI actions use a same-origin HTTP route so they do not append command cards to the transcript.
+  ctx.effect(() => {
+    const fiber = ctx.inject(['webServer'], (scoped) => registerHttp(scoped, dispatch, nonce));
+    return () => fiber.dispose();
+  });
   ctx.effect(() => ctx.commands.register({
     definitionId: 'content-rollback', name: 'rollback',
     description: 'Recover and resend content in this same DSH conversation / 当前会话内找回并重发（不新建会话，不撤销工具副作用）',
-    input: { hint: 'JSON action: list, prepare, execute, status, load-draft, save-draft' },
+    input: { hint: 'JSON action: list, prepare, execute, reply, status, load-draft, save-draft' },
     recordInput: false,
     async handler({ agent, rawInput, signal }) {
       let request;
@@ -93,7 +125,7 @@ export async function apply(ctx) {
     },
   }));
   ctx.on('session/event', (session, event) => {
-    if (!isUserMessage(event) || api.stopped) return;
+    if (!isUserMessage(event) || api.stopped || storageError) return;
     void api.locked(`capture:${session.id}`, async () => {
       try {
         await vault.capture(session.id, event, ctx.attachments);
@@ -110,11 +142,14 @@ export async function apply(ctx) {
     const fiber = agent.ctx.inject(['tools'], (scoped) => {
       scoped.effect(() => scoped.tools.register({
         name: 'conversation_recovery',
-        description: 'Recover an earlier user message from the local backup and resend it in THIS SAME session, either unchanged or after the user edits the text. Attachments keep their sent versions. This never creates or switches sessions, and it never reverts files or external tool side effects. Never execute it without the user asking for recovery.',
+        description: 'Recover an earlier user message from the local backup and resend it in THIS SAME session, either unchanged or after the user edits the text; or add a reply that quotes text the user selected. Attachments keep their sent versions. This never creates or switches sessions, and it never reverts files or external tool side effects. Never execute it without the user asking for recovery or for the quoted reply.',
         parameters: { type: 'object', properties: {
-          action: { type: 'string', enum: ['list', 'prepare', 'execute', 'status', 'load-draft', 'save-draft'] },
+          action: { type: 'string', enum: ['list', 'prepare', 'execute', 'status', 'load-draft', 'save-draft', 'reply'] },
           seq: { type: 'integer' }, token: { type: 'string' }, mode: { type: 'string', enum: ['edit', 'retry', 'send'] },
           before: { type: 'integer' }, edits: { type: 'array', items: { type: 'string' } }, revision: { type: 'integer' },
+          text: { type: 'string', description: 'Reply body for action=reply' },
+          quote: { type: 'string', description: 'Text the user selected, quoted in action=reply' },
+          requestId: { type: 'string', description: 'UUID that makes action=reply idempotent' },
           route: { type: 'object', properties: { provider: { type: 'string' }, model: { type: 'string' }, reasoningEffort: { type: 'string' } }, required: ['provider', 'model'] },
         }, required: ['action'], additionalProperties: false },
         output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
@@ -123,10 +158,10 @@ export async function apply(ctx) {
     });
     agentDisposers.set(agent.id, () => fiber.dispose());
   };
-  ctx.on('agent/created', installTool);
-  ctx.on('agent/disposed', async (agent) => {
-    const dispose = agentDisposers.get(agent.id);
-    agentDisposers.delete(agent.id);
+  ctx.on('agent/created', ({ agent }) => { if (agent) installTool(agent); });
+  ctx.on('agent/disposed', async ({ agent }) => {
+    const dispose = agentDisposers.get(agent?.id);
+    agentDisposers.delete(agent?.id);
     await dispose?.();
   });
   for (const agent of ctx.agents.list()) installTool(agent);

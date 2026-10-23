@@ -1,10 +1,20 @@
 {
   "name": "dsh-content-rollback",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Recover and resend sent content in the same DSH conversation, with byte-verified local backups.",
   "type": "module",
   "main": "./index.js",
   "icon": "icon.svg",
+  "license": "MIT",
+  "author": "github-llh",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/github-llh/dsh-content-rollback.git"
+  },
+  "homepage": "https://github.com/github-llh/dsh-content-rollback#readme",
+  "bugs": {
+    "url": "https://github.com/github-llh/dsh-content-rollback/issues"
+  },
   "exports": {
     ".": "./index.js",
     "./client": "./client/client.js",
@@ -12,22 +22,34 @@
     "./icon": "./icon.svg",
     "./package.json": "./package.json"
   },
-  "files": ["index.js", "src/host", "client", "locale", "icon.svg", "cordis.patch.yml"],
-  "engines": { "node": ">=22.19.0", "dsh": ">=0.2.1-rc.2 <0.2.2" },
+  "files": ["index.js", "src/host", "client", "locale", "icon.svg", "cordis.patch.yml", "README.md", "LICENSE", "CHANGELOG.md"],
+  "engines": { "node": ">=22.19.0", "dsh": ">=0.2.1-rc.2 <0.3.0" },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "node --test test/*.test.js",
+    "test": "node --test \"test/*.test.js\"",
     "verify": "node scripts/verify.mjs",
-    "check": "npm run build && npm test && npm run verify"
+    "release:check": "node scripts/check-release.mjs",
+    "check": "npm run build && npm test && npm run verify",
+    "prepublishOnly": "npm run check"
   },
   "devDependencies": { "esbuild": "0.25.12" },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "dsh-plugin",
+    "conversation",
+    "rollback",
+    "retry",
+    "quote-reply",
+    "attachments"
+  ],
   "dsh": {
     "manifestVersion": 1,
     "bundle": { "patch": "./cordis.patch.yml" },
     "client": {
       "platform": "web",
       "immediately": true,
-      "inject": ["@deepseek-ai/dsh-client-ui-conversation", "@deepseek-ai/dsh-client-locale"]
+      "inject": ["@deepseek-ai/dsh-client-ui-conversation", "@deepseek-ai/dsh-client-ui-commands", "@deepseek-ai/dsh-client-locale"]
     }
   }
 }

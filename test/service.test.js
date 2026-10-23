@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Vault } from '../src/host/vault.js';
 import { RecoveryService } from '../src/host/service.js';
 import { RecoveryError, digest } from '../src/host/domain.js';
@@ -30,6 +30,12 @@ async function fixture(t) {
     validateContent: async () => {},
     send: (id, next, messageId) => { calls.sent.push({ id, content: structuredClone(next), messageId }); history.get(id).push({ type: 'user/message', data: { id: messageId } }); },
     hasMessage: async (id, messageId) => history.get(id).some((item) => item.data?.id === messageId),
+    async reply(id, content, messageId) {
+      if (history.get(id).some((item) => item.data?.id === messageId)) return { accepted: true, messageId, duplicate: true };
+      calls.sent.push({ id, content: structuredClone(content), messageId });
+      history.get(id).push({ type: 'user/message', data: { id: messageId } });
+      return { accepted: true, messageId };
+    },
   };
   return { api: new RecoveryService(host, vault), host, vault, history, event, calls, route };
 }
@@ -161,6 +167,46 @@ test('a running session is only stopped when the user asked for it', async (t) =
   const plan = await api.request('source', { action: 'prepare', seq: 2 });
   host.quiesce = async () => { throw new RecoveryError('SESSION_RUNNING'); };
   await assert.rejects(api.request('source', { action: 'execute', token: plan.token, mode: 'retry', route }), { code: 'SESSION_RUNNING' });
+  assert.equal(calls.sent.length, 0);
+});
+
+test('a quoted reply is added once to the same session even after a retry', async (t) => {
+  const { api, calls } = await fixture(t);
+  const request = { action: 'reply', text: '补充说明', quote: '被选中的句子', requestId: randomUUID() };
+  const first = await api.request('source', request);
+  const second = await api.request('source', request);
+  assert.equal(first.accepted, true);
+  assert.equal(second.duplicate, true);
+  assert.equal(calls.sent.length, 1);
+  assert.equal(calls.sent[0].id, 'source');
+  assert.deepEqual(calls.sent[0].content, [
+    { type: 'text', text: '> 被选中的句子\n\n' },
+    { type: 'text', text: '补充说明' },
+  ]);
+});
+
+test('listing a session without permission is refused', async (t) => {
+  const { api, calls } = await fixture(t);
+  calls.allowed = () => false;
+  await assert.rejects(api.request('source', { action: 'list' }), { code: 'FORBIDDEN' });
+});
+
+test('a transient session change keeps the editor unlocked instead of resetting it', async (t) => {
+  const { api, host, calls, route } = await fixture(t);
+  const plan = await api.request('source', { action: 'prepare', seq: 2 });
+  await api.request('source', { action: 'execute', token: plan.token, mode: 'edit' });
+  host.send = () => { throw new RecoveryError('SESSION_CHANGED'); };
+  const result = await api.request('source', { action: 'execute', token: plan.token, mode: 'retry', route });
+  assert.equal(result.state, 'ready');
+  assert.equal(result.error, 'SESSION_CHANGED');
+  assert.equal(calls.sent.length, 0);
+});
+
+test('quoted replies cannot target another session or leave out the text', async (t) => {
+  const { api, calls } = await fixture(t);
+  calls.allowed = (id) => id === 'source';
+  await assert.rejects(api.request('other', { action: 'reply', text: 'hi', requestId: randomUUID() }), { code: 'FORBIDDEN' });
+  await assert.rejects(api.request('source', { action: 'reply', text: '  ', requestId: randomUUID() }), { code: 'EMPTY_REPLY' });
   assert.equal(calls.sent.length, 0);
 });
 

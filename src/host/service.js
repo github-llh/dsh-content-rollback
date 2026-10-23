@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { link, lstat, mkdir, open, readFile, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
-import { RecoveryError, digest, editContent, isUserMessage, messagePlan, publicOperation, validateRequest } from './domain.js';
+import { RecoveryError, digest, editContent, isUserMessage, messagePlan, publicOperation, replyContent, validateRequest } from './domain.js';
 
 export class RecoveryService {
   constructor(host, vault) {
@@ -23,7 +23,9 @@ export class RecoveryService {
     if (this.stopped) throw new RecoveryError('UNLOADED');
     const request = validateRequest(input);
     signal?.throwIfAborted();
+    if (!this.host.allowed(callerId)) throw new RecoveryError('FORBIDDEN');
     if (request.action === 'list') return this.list(callerId, request.before, signal);
+    if (request.action === 'reply') return this.reply(callerId, request, signal);
     if (request.action === 'prepare') return this.locked(callerId, () => this.prepare(callerId, request.seq, signal));
     return this.locked(request.token, async () => {
       const operation = await this.vault.readRecord('operations', request.token);
@@ -45,8 +47,7 @@ export class RecoveryService {
     });
   }
 
-  async list(sessionId, before, signal) {
-    const observation = await this.host.observe(sessionId, signal);
+  async list(sessionId, before, signal) {    const observation = await this.host.observe(sessionId, signal);
     try {
       const all = observation.events.filter(isUserMessage);
       const visible = all.filter((event) => before === undefined || event.seq < before);
@@ -65,6 +66,11 @@ export class RecoveryService {
         route: this.host.route(sessionId),
       };
     } finally { observation[Symbol.dispose](); }
+  }
+
+  async reply(sessionId, request, signal) {
+    const content = replyContent(request.text, request.quote);
+    return this.host.reply(sessionId, content, `reply-${request.requestId}`, signal);
   }
 
   async prepare(sessionId, seq, signal) {
@@ -157,6 +163,7 @@ export class RecoveryService {
       const content = editContent(snapshot.event.data.content, draft?.edits);
       await this.host.validateContent(content, actualRoute, signal);
       const cursor = await this.host.cursor(operation.sourceSessionId, signal);
+      const startedFrom = operation.state;
       signal?.throwIfAborted();
       operation.state = 'sending';
       operation.route = actualRoute;
@@ -169,7 +176,7 @@ export class RecoveryService {
         operation.state = 'accepted';
         await this.save(operation);
       } catch (error) {
-        operation.state = error instanceof RecoveryError && ['MODEL_CHANGED', 'SESSION_CHANGED', 'PENDING_QUEUE'].includes(error.code) ? operation.state === 'ready' ? 'ready' : 'prepared' : 'uncertain';
+        operation.state = error instanceof RecoveryError && ['MODEL_CHANGED', 'SESSION_CHANGED', 'PENDING_QUEUE'].includes(error.code) ? startedFrom : 'uncertain';
         operation.error = error.code ?? 'SEND_UNCERTAIN';
         await this.save(operation);
       }

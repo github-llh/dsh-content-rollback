@@ -14,10 +14,13 @@ test('host registers one scoped tool per agent and disposes Cordis Fiber objects
   const listeners = new Map();
   const tools = [];
   let disposed = 0;
+  let durable = true;
   let command;
   function makeAgent(id) {
-    return {
-      id, session: { id },
+    const agent = {
+      id, status: 'idle', session: { id, seq: 0 }, inbox: { nextTurn: [], nextStep: [] },
+      followup(message) { this.inbox.nextTurn.push(message); this.session.seq++; },
+      cancel() {}, async whenIdle() {},
       ctx: { inject(dependencies, callback) {
         assert.deepEqual(dependencies, ['tools']);
         const cleanups = [];
@@ -25,17 +28,25 @@ test('host registers one scoped tool per agent and disposes Cordis Fiber objects
         return { async dispose() { disposed++; for (const cleanup of cleanups) await cleanup(); } };
       } },
     };
+    return agent;
   }
   const agent = makeAgent('source');
   const ctx = {
     commands: { register(definition) { command = definition; return () => {}; } },
-    sessions: {}, sessionController: {}, attachments: {},
-    agents: { list: () => [agent], get: () => agent },
+    sessions: { flush: async () => durable }, sessionController: {}, attachments: {},
+    agents: { list: () => [agent], get: (id) => id === agent.id ? agent : undefined },
     sessionQuery: { observeSession: async () => ({ events: [], [Symbol.dispose]() {} }) },
     sessionProjections: { snapshot: () => ({ values: {} }) },
     agentDefaultModel: { currentSelection: () => ({ provider: 'p', model: 'm' }) },
     remoteAccess: { allows: () => true }, llm: {},
     logger: { warn() {} },
+    inject(dependencies, callback) {
+      if (dependencies.includes('webServer')) {
+        const cleanup = callback({ webServer: { register() { return () => {}; } }, remoteAccess: ctx.remoteAccess, logger: ctx.logger });
+        return { async dispose() { await cleanup?.(); } };
+      }
+      return { async dispose() {} };
+    },
     effect(fn) { const cleanup = fn(); effects.push(cleanup); return cleanup; },
     on(name, listener) { listeners.set(name, listener); effects.push(() => listeners.delete(name)); },
   };
@@ -44,10 +55,40 @@ test('host registers one scoped tool per agent and disposes Cordis Fiber objects
   assert.equal(command.name, 'rollback');
   const value = await command.handler({ agent, rawInput: '', signal: new AbortController().signal });
   assert.equal(JSON.parse(value.text).ok, true);
-  await listeners.get('agent/disposed')(agent);
+  const reply = await command.handler({
+    agent,
+    rawInput: JSON.stringify({ action: 'reply', text: '补充', quote: '选中文字', requestId: '2f1c9a3e-4b5d-4c6e-8f70-123456789abc' }),
+    signal: new AbortController().signal,
+  });
+  assert.equal(JSON.parse(reply.text).ok, true);
+  assert.equal(agent.inbox.nextTurn.length, 1);
+  assert.equal(agent.inbox.nextTurn[0].content[0].text, '> 选中文字\n\n');
+  const duplicate = await command.handler({
+    agent,
+    rawInput: JSON.stringify({ action: 'reply', text: '补充', quote: '选中文字', requestId: '2f1c9a3e-4b5d-4c6e-8f70-123456789abc' }),
+    signal: new AbortController().signal,
+  });
+  assert.equal(JSON.parse(duplicate.text).ok, true);
+  assert.equal(agent.inbox.nextTurn.length, 1);
+  durable = false;
+  const unconfirmed = await command.handler({
+    agent,
+    rawInput: JSON.stringify({ action: 'reply', text: '补充', quote: '选中文字', requestId: '2f1c9a3e-4b5d-4c6e-8f70-123456789abc' }),
+    signal: new AbortController().signal,
+  });
+  assert.equal(JSON.parse(unconfirmed.text).ok, false);
+  assert.equal(JSON.parse(unconfirmed.text).error.code, 'NO_PERSISTENCE');
+  assert.equal(agent.inbox.nextTurn.length, 1);
+  await listeners.get('agent/disposed')({ agent });
   assert.equal(disposed, 1);
-  listeners.get('agent/created')(makeAgent('second'));
+  listeners.get('agent/created')({ agent: makeAgent('second') });
   assert.equal(tools.length, 2);
+  const noAgent = await command.handler({
+    agent: { id: 'dormant' },
+    rawInput: JSON.stringify({ action: 'list' }),
+    signal: new AbortController().signal,
+  });
+  assert.equal(JSON.parse(noAgent.text).ok, true, 'listing a dormant session must not require an active Agent');
   for (const cleanup of effects.reverse()) await cleanup();
   assert.equal(disposed, 2);
 });

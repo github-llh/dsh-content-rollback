@@ -37,15 +37,76 @@ module.exports = __toCommonJS(index_exports);
 var import_react = __toESM(require("react"), 1);
 
 // src/client/transport.js
-async function callRecovery(remote, sessionId, request, signal) {
-  if (!remote?.commands?.execute) throw Object.assign(new Error("UNAVAILABLE"), { code: "UNAVAILABLE" });
-  const response = await remote.commands.execute(sessionId, `/rollback ${JSON.stringify(request)}`, [], signal);
-  if (!response?.ok) throw Object.assign(new Error(response?.error?.message ?? "DISCONNECTED"), { code: "DISCONNECTED" });
-  const result = response.value?.result;
-  if (!result || result.kind !== "success") throw Object.assign(new Error(result?.text ?? "UNAVAILABLE"), { code: "UNAVAILABLE" });
-  const envelope = JSON.parse(result.text);
-  if (!envelope.ok) throw Object.assign(new Error(envelope.error.message), { code: envelope.error.code });
+var BASE = "/content-rollback";
+var nonce = null;
+var noncePromise = null;
+function failure(code, message) {
+  return Object.assign(new Error(message || code), { code });
+}
+async function getNonce(fetchImpl) {
+  if (nonce) return nonce;
+  if (!noncePromise) {
+    noncePromise = fetchImpl(`${BASE}/nonce`, { credentials: "same-origin", headers: { accept: "application/json" } }).then(async (response) => {
+      if (!response.ok) throw Object.assign(new Error("http-unavailable"), { fallback: true });
+      const value = await response.json();
+      if (!value || typeof value.nonce !== "string") throw Object.assign(new Error("http-unavailable"), { fallback: true });
+      nonce = value.nonce;
+      return nonce;
+    }).catch((error) => {
+      noncePromise = null;
+      throw error;
+    });
+  }
+  return noncePromise;
+}
+async function httpCall(fetchImpl, sessionId, request, signal) {
+  const send = async () => {
+    const token = await getNonce(fetchImpl);
+    try {
+      return await fetchImpl(`${BASE}/call`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json", "x-dcr-nonce": token },
+        body: JSON.stringify({ sessionId, request }),
+        signal
+      });
+    } catch (error) {
+      throw Object.assign(new Error(error?.message || "http-unavailable"), { fallback: true });
+    }
+  };
+  let response = await send();
+  if (response.status === 403) {
+    nonce = null;
+    noncePromise = null;
+    response = await send();
+    if (response.status === 403) throw failure("FORBIDDEN", "recovery request was rejected");
+  }
+  if (response.status === 404 || response.status === 405) throw Object.assign(new Error("http-unavailable"), { fallback: true });
+  if (!response.ok) throw failure("DISCONNECTED", `recovery request failed with ${response.status}`);
+  const envelope = await response.json();
+  if (!envelope || typeof envelope.ok !== "boolean") throw failure("RECOVERY_FAILED", "invalid recovery response");
+  if (!envelope.ok) throw failure(envelope.error?.code ?? "RECOVERY_FAILED", envelope.error?.message);
   return envelope.value;
+}
+async function commandCall(remote, sessionId, request, signal) {
+  if (!remote?.commands?.execute) throw failure("UNAVAILABLE");
+  const response = await remote.commands.execute(sessionId, `/rollback ${JSON.stringify(request)}`, [], signal);
+  if (!response?.ok) throw failure("DISCONNECTED", response?.error?.message);
+  const result = response.value?.result;
+  if (!result || result.kind !== "success") throw failure("UNAVAILABLE", result?.text);
+  const envelope = JSON.parse(result.text);
+  if (!envelope.ok) throw failure(envelope.error?.code ?? "RECOVERY_FAILED", envelope.error?.message);
+  return envelope.value;
+}
+async function callRecovery(fetchImpl, remote, sessionId, request, signal) {
+  if (fetchImpl) {
+    try {
+      return await httpCall(fetchImpl, sessionId, request, signal);
+    } catch (error) {
+      if (!error?.fallback) throw error;
+    }
+  }
+  return commandCall(remote, sessionId, request, signal);
 }
 var DraftWriter = class {
   constructor(token, revision, send, storage, delay = 250) {
@@ -139,6 +200,16 @@ var translations = {
     uncertain: "\u4E0A\u6B21\u53D1\u9001\u7ED3\u679C\u5C1A\u4E0D\u786E\u5B9A\u3002\u4E3A\u907F\u514D\u91CD\u590D\u53D1\u9001\uFF0C\u5DF2\u963B\u6B62\u81EA\u52A8\u91CD\u53D1\uFF1B\u8BF7\u5237\u65B0\u6838\u5BF9\u540E\u518D\u51B3\u5B9A\u3002",
     resume: "\u7EE7\u7EED\u4E0A\u6B21\u56DE\u6EAF",
     check: "\u6838\u5BF9\u53D1\u9001\u7ED3\u679C",
+    quoteSelection: "\u5F15\u7528\u9009\u4E2D",
+    quoteHint: "\u628A\u5F53\u524D\u9009\u4E2D\u7684\u6587\u5B57\u4F5C\u4E3A\u5F15\u7528\uFF0C\u56DE\u590D\u5230\u5F53\u524D\u4F1A\u8BDD",
+    selectionAvailable: "\u5DF2\u9009\u4E2D {count} \u5B57",
+    quotedSelection: "\u5F15\u7528 {count} \u5B57",
+    replyPlaceholder: "\u56DE\u590D\u9009\u4E2D\u7684\u5185\u5BB9\u2026",
+    replySend: "\u6DFB\u52A0\u5230\u5F53\u524D\u4F1A\u8BDD",
+    replySent: "\u5F15\u7528\u56DE\u590D\u5DF2\u6DFB\u52A0\u5230\u5F53\u524D\u4F1A\u8BDD\u3002",
+    cancel: "\u53D6\u6D88",
+    sendHint: "\u53D1\u9001",
+    cancelHint: "\u53D6\u6D88",
     preserveDraft: "\u8FD9\u91CC\u7F16\u8F91\u4E0D\u4F1A\u8986\u76D6 dsh \u8F93\u5165\u6846\u4E2D\u5DF2\u6709\u7684\u8349\u7A3F\uFF1B\u9644\u4EF6\u4E0D\u53EF\u88AB\u610F\u5916\u79FB\u9664\u3002",
     conflict: "\u672C\u673A\u672A\u4FDD\u5B58\u5185\u5BB9\u4E0E\u53E6\u4E00\u9875\u9762\u7684\u8349\u7A3F\u51B2\u7A81\u3002\u4E0B\u65B9\u662F\u672C\u673A\u7248\u672C\uFF0C\u8BF7\u9009\u62E9\u4FDD\u7559\u54EA\u4E00\u4EFD\u3002",
     useLocal: "\u4F7F\u7528\u672C\u673A\u7248\u672C",
@@ -160,13 +231,19 @@ var translations = {
     "errors.OPEN_EDITOR_FIRST": "\u8BF7\u5148\u201C\u53D6\u56DE\u7F16\u8F91\u201D\uFF0C\u518D\u53D1\u9001\u4FEE\u6539\u540E\u7684\u5185\u5BB9\u3002",
     "errors.DRAFT_CONFLICT": "\u8349\u7A3F\u5DF2\u5728\u53E6\u4E00\u9875\u9762\u66F4\u65B0\uFF0C\u8BF7\u91CD\u65B0\u8F7D\u5165\u5E76\u6838\u5BF9\u5185\u5BB9\u3002",
     "errors.EMPTY_MESSAGE": "\u4E0D\u80FD\u53D1\u9001\u6CA1\u6709\u6587\u5B57\u548C\u9644\u4EF6\u7684\u7A7A\u6D88\u606F\u3002",
+    "errors.EMPTY_REPLY": "\u56DE\u590D\u5185\u5BB9\u4E0D\u80FD\u4E3A\u7A7A\u3002",
+    "errors.INVALID_QUOTE": "\u5F15\u7528\u5185\u5BB9\u65E0\u6548\uFF0C\u8BF7\u91CD\u65B0\u9009\u62E9\u6587\u5B57\u3002",
+    "errors.QUOTE_TOO_LONG": "\u5F15\u7528\u8D85\u8FC7 4000 \u5B57\uFF0C\u8BF7\u7F29\u77ED\u9009\u62E9\u8303\u56F4\u3002",
+    "errors.REPLY_TOO_LONG": "\u56DE\u590D\u8D85\u8FC7 16000 \u5B57\uFF0C\u8BF7\u7CBE\u7B80\u540E\u91CD\u8BD5\u3002",
+    "errors.BAD_REQUEST_ID": "\u56DE\u590D\u8BF7\u6C42\u6807\u8BC6\u65E0\u6548\uFF0C\u8BF7\u91CD\u65B0\u6253\u5F00\u5F15\u7528\u56DE\u590D\u3002",
     "errors.FORBIDDEN": "\u5F53\u524D\u4F1A\u8BDD\u65E0\u6743\u8BBF\u95EE\u8FD9\u6B21\u56DE\u6EAF\u3002",
     "errors.RECOVERY_LOCKED": "\u540C\u4E00\u4F1A\u8BDD\u5B58\u5728\u8FD0\u884C\u4E2D\u6216\u4E2D\u65AD\u7684\u64CD\u4F5C\u9501\uFF1B\u8BF7\u6838\u5BF9\u4E0A\u6B21\u7ED3\u679C\uFF0C\u4E0D\u8981\u91CD\u590D\u6267\u884C\u3002",
     "errors.NO_PERSISTENCE": "\u5BBF\u4E3B\u672A\u786E\u8BA4\u5386\u53F2\u5DF2\u843D\u76D8\uFF0C\u53D1\u9001\u5DF2\u6682\u505C\uFF0C\u539F\u5185\u5BB9\u5907\u4EFD\u4FDD\u7559\u3002",
     "errors.SOURCE_CHANGED": "\u8BE5\u6D88\u606F\u5DF2\u88AB\u4FEE\u6539\u6216\u5220\u9664\uFF0C\u8BF7\u5237\u65B0\u5E76\u91CD\u65B0\u9009\u62E9\u3002",
     "errors.SESSION_CHANGED": "\u4F1A\u8BDD\u72B6\u6001\u5DF2\u53D8\u5316\uFF0C\u8BF7\u5237\u65B0\u5E76\u6838\u5BF9\u3002",
     "errors.SESSION_NOT_ACTIVE": "\u4F1A\u8BDD\u5C1A\u672A\u52A0\u8F7D\uFF0C\u8BF7\u5728 dsh \u4E2D\u6253\u5F00\u540E\u91CD\u8BD5\u3002",
-    "errors.BACKUP_INVALID": "\u5907\u4EFD\u6821\u9A8C\u5931\u8D25\uFF0C\u5DF2\u963B\u6B62\u91CD\u53D1\uFF0C\u8BF7\u4FDD\u7559\u539F\u4F1A\u8BDD\u5E76\u68C0\u67E5\u5B58\u50A8\u3002"
+    "errors.BACKUP_INVALID": "\u5907\u4EFD\u6821\u9A8C\u5931\u8D25\uFF0C\u5DF2\u963B\u6B62\u91CD\u53D1\uFF0C\u8BF7\u4FDD\u7559\u539F\u4F1A\u8BDD\u5E76\u68C0\u67E5\u5B58\u50A8\u3002",
+    "errors.STORAGE_UNAVAILABLE": "\u672C\u5730\u5907\u4EFD\u76EE\u5F55\u4E0D\u53EF\u7528\u3002\u8BF7\u68C0\u67E5 DSH_HOME \u7684\u5199\u5165\u6743\u9650\u6216\u78C1\u76D8\u7A7A\u95F4\u540E\u91CD\u8BD5\uFF1B\u4E0D\u4F1A\u53D1\u9001\u4EFB\u4F55\u5185\u5BB9\u3002"
   },
   en: {
     title: "Conversation recovery",
@@ -201,6 +278,16 @@ var translations = {
     uncertain: "The previous send outcome is uncertain. Automatic resending is blocked to avoid duplicates; refresh and verify.",
     resume: "Resume recovery",
     check: "Check send result",
+    quoteSelection: "Quote selection",
+    quoteHint: "Quote the selected text and reply in this conversation",
+    selectionAvailable: "{count} characters selected",
+    quotedSelection: "Quoted {count} characters",
+    replyPlaceholder: "Reply to the selected text\u2026",
+    replySend: "Add to this conversation",
+    replySent: "Quoted reply added to this conversation.",
+    cancel: "Cancel",
+    sendHint: "send",
+    cancelHint: "cancel",
     preserveDraft: "Editing here never overwrites the DSH composer draft. Attachments cannot be accidentally removed.",
     conflict: "Unsaved local text conflicts with a draft from another page. Your local version is shown below. Choose which version to keep.",
     useLocal: "Use local version",
@@ -222,41 +309,156 @@ var translations = {
     "errors.OPEN_EDITOR_FIRST": "Retrieve the message for editing before sending modified text.",
     "errors.DRAFT_CONFLICT": "Another page updated this draft. Reload and compare before continuing.",
     "errors.EMPTY_MESSAGE": "A message needs text or an attachment.",
+    "errors.EMPTY_REPLY": "The reply cannot be empty.",
+    "errors.INVALID_QUOTE": "The quoted text is invalid. Select it again.",
+    "errors.QUOTE_TOO_LONG": "The selection exceeds 4000 characters. Shorten it and try again.",
+    "errors.REPLY_TOO_LONG": "The reply exceeds 16000 characters. Shorten it and try again.",
+    "errors.BAD_REQUEST_ID": "The reply request id is invalid. Reopen the quoted reply.",
     "errors.FORBIDDEN": "This conversation cannot access that recovery.",
     "errors.RECOVERY_LOCKED": "Another running or interrupted operation holds this conversation lock. Check its outcome before proceeding.",
     "errors.NO_PERSISTENCE": "The host has not confirmed durable history. Sending paused; the backup remains.",
     "errors.SOURCE_CHANGED": "That message was modified or removed. Refresh and select it again.",
     "errors.SESSION_CHANGED": "The conversation state changed. Refresh and check it.",
     "errors.SESSION_NOT_ACTIVE": "Open this conversation in DSH before retrying.",
-    "errors.BACKUP_INVALID": "Backup integrity failed. Replay was blocked; preserve the original conversation and inspect storage."
+    "errors.BACKUP_INVALID": "Backup integrity failed. Replay was blocked; preserve the original conversation and inspect storage.",
+    "errors.STORAGE_UNAVAILABLE": "The local backup directory is unavailable. Check write access and free space under DSH_HOME, then retry. Nothing was sent."
   }
 };
 
 // src/client/styles.js
 var css = `
-.dcr{color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;line-height:1.55;min-width:0;width:100%;box-sizing:border-box}
+.dcr{--dcr-radius:10px;--dcr-quote-bg:color-mix(in srgb,var(--dsw-alias-label-primary) 5%,transparent);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;line-height:1.55;min-width:0;width:100%;box-sizing:border-box}
 .dcr *{box-sizing:border-box}.dcr button,.dcr textarea{font:inherit;color:inherit}
-.dcr button{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--dsw-alias-border-l1);border-radius:7px;background:transparent;padding:5px 9px;cursor:pointer;min-height:30px}
+.dcr button{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:transparent;padding:5px 10px;cursor:pointer;min-height:30px;transition:background .15s ease,border-color .15s ease,opacity .15s ease}
 .dcr button:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}.dcr button:disabled{opacity:.45;cursor:default}
+.dcr button.dcr-primary{background:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-primary);color:var(--dsw-alias-bg-base);font-weight:600}
+.dcr button.dcr-primary:hover:not(:disabled){background:var(--dsw-alias-label-primary);opacity:.88}
 .dcr button:focus-visible,.dcr textarea:focus-visible,.dcr input:focus-visible{outline:2px solid var(--dsw-focus-ring-color);outline-offset:2px}
-.dcr-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 2px}.dcr-bar button{border:0}.dcr-muted{color:var(--dsw-alias-label-secondary)}.dcr-tagline{color:var(--dsw-alias-label-tertiary);font-size:11px}
-.dcr-panel{border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-base);margin:3px 0 8px;overflow:hidden}
-.dcr-head,.dcr-foot{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:10px 12px;flex-wrap:wrap}.dcr-head{border-bottom:1px solid var(--dsw-alias-border-l1)}.dcr-head h3{font-size:12px;margin:0;font-weight:600}
-.dcr-scroll{max-height:min(48vh,420px);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}.dcr-list{list-style:none;margin:0;padding:4px}.dcr-list li{margin:3px 0}.dcr-list button{display:block;width:100%;text-align:left;border-color:transparent;padding:8px 9px}
-.dcr-preview{white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.dcr-meta{display:flex;gap:7px;align-items:center;flex-wrap:wrap;color:var(--dsw-alias-label-tertiary);font-size:11px;margin-top:4px}
-.dcr-body{padding:10px 12px}.dcr-note{color:var(--dsw-alias-label-secondary);margin:0 0 9px;font-size:11px;overflow-wrap:anywhere}.dcr-error{color:var(--dsw-alias-state-error-primary);padding:8px 12px;overflow-wrap:anywhere}.dcr-warning{border-left:2px solid var(--dsw-alias-border-l1);padding-left:9px}
-.dcr-block{display:block;margin:8px 0}.dcr-block-label{display:block;font-size:11px;color:var(--dsw-alias-label-secondary);margin-bottom:3px}.dcr textarea{display:block;width:100%;min-height:74px;max-height:240px;resize:vertical;border:1px solid var(--dsw-alias-border-l1);border-radius:7px;background:var(--dsw-alias-bg-base);padding:8px;white-space:pre-wrap;overflow-wrap:anywhere}
-.dcr-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--dsw-alias-border-l1);border-radius:6px;padding:5px 8px;margin:3px 4px 3px 0;max-width:100%;overflow-wrap:anywhere}.dcr-chip span{min-width:0}
-.dcr-actions{display:flex;gap:7px;flex-wrap:wrap}.dcr-primary{font-weight:600}.dcr-foot{border-top:1px solid var(--dsw-alias-border-l1)}.dcr-check{display:flex;align-items:flex-start;gap:7px;font-size:11px;color:var(--dsw-alias-label-secondary);margin:10px 0}.dcr-check input{margin-top:3px;accent-color:var(--dsw-alias-label-primary)}.dcr-empty{text-align:center;padding:24px 12px;color:var(--dsw-alias-label-secondary)}.dcr-status{padding:12px;overflow-wrap:anywhere}.dcr-status p{margin:0 0 8px}
-@media(max-width:480px){.dcr-tagline{display:none}.dcr-head,.dcr-foot,.dcr-body{padding:9px}.dcr-foot .dcr-actions{width:100%}.dcr-foot button{flex:1}.dcr-scroll{max-height:42vh}}
-@media(prefers-reduced-motion:reduce){.dcr *{scroll-behavior:auto}}
+.dcr-bar{display:flex;align-items:center;gap:8px;padding:4px 2px}.dcr-bar>button:first-child{border-color:transparent;padding-left:4px;padding-right:6px}
+.dcr-bar-actions{display:flex;align-items:center;gap:6px;margin-left:auto;min-width:0}
+.dcr-muted{color:var(--dsw-alias-label-secondary)}.dcr-tagline{color:var(--dsw-alias-label-tertiary);font-size:11px;white-space:nowrap}
+.dcr-quote-trigger{border-style:dashed!important;color:var(--dsw-alias-label-secondary);white-space:nowrap;max-width:46%;overflow:hidden;text-overflow:ellipsis}
+.dcr-panel{border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-base);box-shadow:var(--dsw-elevation-panel,0 1px 2px rgba(0,0,0,.04));margin:4px 0 9px;overflow:hidden;animation:dcr-in .16s ease}
+@keyframes dcr-in{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+.dcr-head,.dcr-foot{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:11px 14px;flex-wrap:wrap}.dcr-head{border-bottom:1px solid var(--dsw-alias-border-l1)}
+.dcr-head h3{font-size:12px;margin:0;font-weight:600;letter-spacing:.01em}
+.dcr-head .dcr-actions button{border-color:transparent;min-height:26px;padding:3px 7px;color:var(--dsw-alias-label-secondary)}
+.dcr-scroll{max-height:min(48vh,420px);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+.dcr-list{list-style:none;margin:0;padding:5px}.dcr-list li{margin:2px 0}
+.dcr-list button{display:block;width:100%;text-align:left;border-color:transparent;padding:9px 10px;border-radius:8px}
+.dcr-list button:hover:not(:disabled){border-color:var(--dsw-alias-border-l1)}
+.dcr-preview{white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.dcr-meta{display:flex;gap:7px;align-items:center;flex-wrap:wrap;color:var(--dsw-alias-label-tertiary);font-size:11px;margin-top:4px}
+.dcr-body{padding:12px 14px}.dcr-note{color:var(--dsw-alias-label-secondary);margin:0 0 9px;font-size:11px;overflow-wrap:anywhere}
+.dcr-error{color:var(--dsw-alias-state-error-primary);padding:9px 14px;overflow-wrap:anywhere;font-size:11px}
+.dcr-warning{border-left:2px solid var(--dsw-alias-border-l1);padding-left:10px}
+.dcr-block{display:block;margin:9px 0}.dcr-block-label{display:block;font-size:11px;color:var(--dsw-alias-label-secondary);margin-bottom:4px}
+.dcr textarea{display:block;width:100%;min-height:76px;max-height:240px;resize:vertical;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-base);padding:9px 10px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}
+.dcr textarea::placeholder{color:var(--dsw-alias-label-tertiary)}
+.dcr-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--dsw-alias-border-l1);border-radius:7px;padding:5px 9px;margin:3px 4px 3px 0;max-width:100%;overflow-wrap:anywhere}.dcr-chip span{min-width:0}
+.dcr-actions{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.dcr-foot{border-top:1px solid var(--dsw-alias-border-l1)}
+.dcr-check{display:flex;align-items:flex-start;gap:8px;font-size:11px;color:var(--dsw-alias-label-secondary);margin:11px 0 0}
+.dcr-check input{margin-top:3px;accent-color:var(--dsw-alias-label-primary)}
+.dcr-empty{text-align:center;padding:26px 14px;color:var(--dsw-alias-label-secondary)}
+.dcr-status{padding:12px 14px;overflow-wrap:anywhere}.dcr-status p{margin:0 0 8px}
+.dcr-notice{margin:10px 14px 0;padding:7px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;color:var(--dsw-alias-label-secondary);font-size:11px;animation:dcr-in .16s ease}
+.dcr-quote-prompt{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 14px;border-bottom:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);font-size:11px}
+.dcr-reply{border-bottom:1px solid var(--dsw-alias-border-l1);padding:12px 14px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 2.5%,transparent)}
+.dcr-quote{border:1px solid var(--dsw-alias-border-l1);border-left:3px solid var(--dsw-alias-label-tertiary);border-radius:8px;background:var(--dcr-quote-bg);margin-bottom:9px;overflow:hidden}
+.dcr-quote-head{display:flex;align-items:center;gap:6px;padding:6px 9px;color:var(--dsw-alias-label-secondary);font-size:11px}
+.dcr-quote-head span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dcr-quote-head button{border:0;min-height:22px;padding:0 4px;color:var(--dsw-alias-label-tertiary)}
+.dcr-quote-body{margin:0;padding:0 10px 9px;max-height:118px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--dsw-alias-label-secondary);font-size:11.5px;line-height:1.6;overscroll-behavior:contain}
+.dcr-reply-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;flex-wrap:wrap}
+.dcr-hint{color:var(--dsw-alias-label-tertiary);font-size:10.5px;font-variant-numeric:tabular-nums}
+@media(max-width:520px){.dcr-tagline{display:none}.dcr-head,.dcr-foot,.dcr-body,.dcr-reply{padding:10px}.dcr-foot .dcr-actions{width:100%}.dcr-foot button{flex:1}.dcr-scroll{max-height:42vh}.dcr-quote-trigger{max-width:52%}}
+@media(prefers-reduced-motion:reduce){.dcr *{animation:none!important;transition:none!important;scroll-behavior:auto}}
 `;
 
 // src/client/index.jsx
 var NS = "dsh-content-rollback";
-var inject = ["slots", "locale", "remote"];
+var inject = ["slots", "locale", "remote", "remote.commands"];
+var QUOTE_LIMIT = 4e3;
+var PRIMARY_MODIFIER = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgentData?.platform ?? navigator.platform ?? "") ? "\u2318" : "Ctrl";
+function errorText(t, code) {
+  return translations.en[`errors.${code}`] ? t(`errors.${code}`) : t("error", { code });
+}
+function newRequestId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  globalThis.crypto.getRandomValues(bytes);
+  bytes[6] = bytes[6] & 15 | 64;
+  bytes[8] = bytes[8] & 63 | 128;
+  const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
 function RecoveryIcon() {
   return /* @__PURE__ */ import_react.default.createElement("svg", { width: "15", height: "15", viewBox: "0 0 24 24", fill: "none", "aria-hidden": "true" }, /* @__PURE__ */ import_react.default.createElement("path", { d: "M5 8h10a6 6 0 0 1 0 12H9M5 8l4-4M5 8l4 4", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round", strokeLinejoin: "round" }));
+}
+function QuoteIcon() {
+  return /* @__PURE__ */ import_react.default.createElement("svg", { width: "14", height: "14", viewBox: "0 0 24 24", fill: "none", "aria-hidden": "true" }, /* @__PURE__ */ import_react.default.createElement("path", { d: "M9 7H5v6h4c0 2-1 3-3 4M19 7h-4v6h4c0 2-1 3-3 4", stroke: "currentColor", strokeWidth: "1.7", strokeLinecap: "round", strokeLinejoin: "round" }));
+}
+function useSelection() {
+  const [selection, setSelection] = (0, import_react.useState)("");
+  (0, import_react.useEffect)(() => {
+    let frame = 0;
+    const read = () => {
+      frame = 0;
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed) {
+        setSelection("");
+        return;
+      }
+      const node = sel.anchorNode;
+      const element = node?.nodeType === 1 ? node : node?.parentElement;
+      if (element?.closest?.(".dcr")) return;
+      const text = sel.toString().replace(/\s+$/, "").trim();
+      setSelection(text.length > QUOTE_LIMIT ? text.slice(0, QUOTE_LIMIT) : text);
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(read);
+    };
+    document.addEventListener("selectionchange", schedule);
+    return () => {
+      document.removeEventListener("selectionchange", schedule);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, []);
+  return [selection, setSelection];
+}
+function QuoteReply({ quote, request, onClose, onSent, t }) {
+  const [text, setText] = (0, import_react.useState)("");
+  const [busy, setBusy] = (0, import_react.useState)(false);
+  const [error, setError] = (0, import_react.useState)(null);
+  const requestId = (0, import_react.useRef)(newRequestId());
+  const area = (0, import_react.useRef)(null);
+  (0, import_react.useEffect)(() => {
+    area.current?.focus();
+  }, []);
+  async function send() {
+    if (busy || !text.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await request({ action: "reply", text, quote, requestId: requestId.current });
+      setText("");
+      onSent();
+    } catch (cause) {
+      setError(cause.code ?? "RECOVERY_FAILED");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-reply", onKeyDown: (event) => {
+    if (event.key === "Escape") {
+      event.stopPropagation();
+      onClose();
+    } else if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      void send();
+    }
+  } }, /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-quote" }, /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-quote-head" }, /* @__PURE__ */ import_react.default.createElement(QuoteIcon, null), /* @__PURE__ */ import_react.default.createElement("span", null, t("quotedSelection", { count: quote.length })), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", onClick: onClose, "aria-label": t("close") }, "\xD7")), /* @__PURE__ */ import_react.default.createElement("blockquote", { className: "dcr-quote-body" }, quote)), /* @__PURE__ */ import_react.default.createElement("textarea", { ref: area, value: text, onChange: (event) => setText(event.target.value), placeholder: t("replyPlaceholder"), "aria-label": t("replyPlaceholder"), spellCheck: false }), error && /* @__PURE__ */ import_react.default.createElement("p", { className: "dcr-error", role: "alert" }, errorText(t, error)), /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-reply-foot" }, /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-hint" }, PRIMARY_MODIFIER, "\u21B5 ", t("sendHint"), " \xB7 Esc ", t("cancelHint")), /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-actions" }, /* @__PURE__ */ import_react.default.createElement("button", { type: "button", onClick: onClose }, t("cancel")), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-primary", disabled: busy || !text.trim(), onClick: () => void send() }, t(busy ? "working" : "replySend")))));
 }
 function Panel({ sessionId, remote, t }) {
   const [expanded, setExpanded] = (0, import_react.useState)(false);
@@ -265,19 +467,25 @@ function Panel({ sessionId, remote, t }) {
   const [content, setContent] = (0, import_react.useState)([]);
   const [busy, setBusy] = (0, import_react.useState)(false);
   const [error, setError] = (0, import_react.useState)(null);
+  const [errorDetail, setErrorDetail] = (0, import_react.useState)(null);
+  const [notice, setNotice] = (0, import_react.useState)(null);
   const [saveState, setSaveState] = (0, import_react.useState)("saved");
   const [stop, setStop] = (0, import_react.useState)(false);
   const [conflict, setConflict] = (0, import_react.useState)(null);
+  const [quote, setQuote] = (0, import_react.useState)("");
+  const [selection, setSelection] = useSelection();
   const active = (0, import_react.useRef)(true);
   const inFlight = (0, import_react.useRef)(false);
   const writer = (0, import_react.useRef)(null);
   const trigger = (0, import_react.useRef)(null);
   const saveGeneration = (0, import_react.useRef)(0);
-  const request = (value) => callRecovery(remote, sessionId, value);
+  const request = (value) => callRecovery(typeof fetch === "function" ? fetch.bind(globalThis) : null, remote, sessionId, value);
   const report = (cause) => {
-    if (active.current) setError(cause.code ?? "RECOVERY_FAILED");
+    if (active.current) {
+      setError(cause.code ?? "RECOVERY_FAILED");
+      setErrorDetail(cause.message ?? null);
+    }
   };
-  const textError = (code) => translations.en[`errors.${code}`] ? t(`errors.${code}`) : t("error", { code });
   (0, import_react.useEffect)(() => {
     active.current = true;
     return () => {
@@ -286,11 +494,19 @@ function Panel({ sessionId, remote, t }) {
       });
     };
   }, []);
+  (0, import_react.useEffect)(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => {
+      if (active.current) setNotice(null);
+    }, 4e3);
+    return () => clearTimeout(timer);
+  }, [notice]);
   async function run(action) {
     if (inFlight.current) return;
     inFlight.current = true;
     setBusy(true);
     setError(null);
+    setErrorDetail(null);
     try {
       return await action();
     } catch (cause) {
@@ -308,6 +524,13 @@ function Panel({ sessionId, remote, t }) {
   (0, import_react.useEffect)(() => {
     void run(() => refresh());
   }, []);
+  function quoteSelection() {
+    if (!selection) return;
+    setQuote(selection);
+    setExpanded(true);
+    setSelection("");
+    window.getSelection()?.removeAllRanges();
+  }
   function applyDraft(result) {
     const storage = { getItem: (key) => window.localStorage.getItem(key), setItem: (key, value) => window.localStorage.setItem(key, value), removeItem: (key) => window.localStorage.removeItem(key) };
     const draftWriter = new DraftWriter(result.token, result.revision ?? 0, request, storage);
@@ -331,7 +554,10 @@ function Panel({ sessionId, remote, t }) {
     } catch {
     }
     setSelected({ ...result, originalContent: result.originalContent ?? result.content });
-    if (result.error) setError(result.error);
+    if (result.error) {
+      setError(result.error);
+      setErrorDetail(null);
+    }
     setContent(next);
     setStop(false);
     setExpanded(true);
@@ -365,11 +591,13 @@ function Panel({ sessionId, remote, t }) {
   }
   async function execute(mode) {
     await writer.current?.flush();
-    const route = listing?.route;
-    const result = await request({ action: "execute", token: selected.token, mode, stop, route, ...mode === "send" ? { revision: writer.current?.revision ?? 0 } : {} });
+    const result = await request({ action: "execute", token: selected.token, mode, stop, route: listing?.route, ...mode === "send" ? { revision: writer.current?.revision ?? 0 } : {} });
     if (!active.current) return;
     setSelected((previous) => ({ ...previous, ...result }));
-    if (result.error) setError(result.error);
+    if (result.error) {
+      setError(result.error);
+      setErrorDetail(null);
+    }
     await refresh();
   }
   async function check() {
@@ -382,19 +610,23 @@ function Panel({ sessionId, remote, t }) {
     setExpanded(false);
     trigger.current?.focus();
   };
+  const sendQuote = () => {
+    setQuote("");
+    setNotice(t("replySent"));
+  };
   return /* @__PURE__ */ import_react.default.createElement("section", { className: "dcr", "aria-label": t("title"), onKeyDown: (event) => {
-    if (event.key === "Escape" && expanded && !event.nativeEvent.isComposing) {
+    if (event.key === "Escape" && expanded && !quote && !event.nativeEvent.isComposing) {
       event.stopPropagation();
       close();
     }
   } }, /* @__PURE__ */ import_react.default.createElement("style", null, css), /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-bar" }, /* @__PURE__ */ import_react.default.createElement("button", { ref: trigger, type: "button", "aria-expanded": expanded, onClick: () => {
     setExpanded(!expanded);
     if (!expanded) void run(() => refresh());
-  } }, /* @__PURE__ */ import_react.default.createElement(RecoveryIcon, null), t("title")), /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-tagline" }, t("tagline")), !expanded && listing?.pending && /* @__PURE__ */ import_react.default.createElement("button", { type: "button", disabled: busy, onClick: () => void run(() => resume(listing.pending.token)) }, t("resume"))), expanded && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-panel", "aria-busy": busy }, /* @__PURE__ */ import_react.default.createElement("header", { className: "dcr-head" }, /* @__PURE__ */ import_react.default.createElement("h3", null, t(selected ? "original" : "history")), /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-actions" }, selected && /* @__PURE__ */ import_react.default.createElement("button", { type: "button", disabled: busy || saveState === "saving", onClick: () => void run(async () => {
+  } }, /* @__PURE__ */ import_react.default.createElement(RecoveryIcon, null), t("title")), /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-tagline" }, t("tagline")), /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-bar-actions" }, selection && /* @__PURE__ */ import_react.default.createElement("button", { type: "button", className: "dcr-quote-trigger", title: t("quoteHint"), onPointerDown: (event) => event.preventDefault(), onClick: quoteSelection }, /* @__PURE__ */ import_react.default.createElement(QuoteIcon, null), t("quoteSelection")), !expanded && listing?.pending && /* @__PURE__ */ import_react.default.createElement("button", { type: "button", disabled: busy, onClick: () => void run(() => resume(listing.pending.token)) }, t("resume")))), expanded && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-panel", "aria-busy": busy }, /* @__PURE__ */ import_react.default.createElement("header", { className: "dcr-head" }, /* @__PURE__ */ import_react.default.createElement("h3", null, t(selected ? "original" : "history")), /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-actions" }, selected && /* @__PURE__ */ import_react.default.createElement("button", { type: "button", disabled: busy || saveState === "saving", onClick: () => void run(async () => {
     await writer.current?.flush();
     setSelected(null);
     await refresh();
-  }) }, t("back")), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", disabled: busy, onClick: () => void run(() => refresh()) }, t("refresh")), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", onClick: close, "aria-label": t("close") }, "\xD7"))), error && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-error", role: "alert" }, textError(error), error === "DRAFT_CONFLICT" && selected && /* @__PURE__ */ import_react.default.createElement("button", { type: "button", onClick: () => void run(async () => {
+  }) }, t("back")), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", disabled: busy, onClick: () => void run(() => refresh()) }, t("refresh")), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", onClick: close, "aria-label": t("close") }, "\xD7"))), quote && /* @__PURE__ */ import_react.default.createElement(QuoteReply, { quote, request, onClose: () => setQuote(""), onSent: sendQuote, t }), notice && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-notice", role: "status" }, notice), selection && !quote && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-quote-prompt" }, /* @__PURE__ */ import_react.default.createElement("span", null, t("selectionAvailable", { count: selection.length })), /* @__PURE__ */ import_react.default.createElement("button", { type: "button", onPointerDown: (event) => event.preventDefault(), onClick: quoteSelection }, t("quoteSelection"))), error && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-error", role: "alert" }, errorText(t, error), !translations.en[`errors.${error}`] && errorDetail && /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-muted" }, " \xB7 ", errorDetail), error === "DRAFT_CONFLICT" && selected && /* @__PURE__ */ import_react.default.createElement("button", { type: "button", onClick: () => void run(async () => {
     const result = await request({ action: "load-draft", token: selected.token });
     if (active.current) applyDraft(result);
   }) }, t("reloadDraft"))), listing?.archiveIssue && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-error", role: "status" }, t("backupIssue", { code: listing.archiveIssue })), !selected ? /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-scroll" }, listing?.pending && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-body" }, /* @__PURE__ */ import_react.default.createElement("button", { type: "button", disabled: busy, onClick: () => void run(() => resume(listing.pending.token)) }, t("resume"))), !listing ? /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-empty" }, t("loading")) : listing.items.length === 0 ? /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-empty" }, t("empty")) : /* @__PURE__ */ import_react.default.createElement("ol", { className: "dcr-list" }, listing.items.map((item) => /* @__PURE__ */ import_react.default.createElement("li", { key: item.seq }, /* @__PURE__ */ import_react.default.createElement("button", { type: "button", disabled: busy, onClick: () => void run(() => choose(item.seq)) }, /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-preview" }, item.preview || t("attachmentOnly")), /* @__PURE__ */ import_react.default.createElement("span", { className: "dcr-meta" }, /* @__PURE__ */ import_react.default.createElement("time", null, new Date(item.time).toLocaleString()), /* @__PURE__ */ import_react.default.createElement("span", null, "#", item.seq), item.attachments.map((part, i) => /* @__PURE__ */ import_react.default.createElement("span", { key: i }, part.name || t(part.type === "image" ? "image" : "file")))))))), listing?.hasMore && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-body" }, /* @__PURE__ */ import_react.default.createElement("button", { type: "button", disabled: busy, onClick: () => void run(() => refresh(true)) }, t("more")))) : /* @__PURE__ */ import_react.default.createElement(import_react.default.Fragment, null, /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-scroll" }, /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-body" }, /* @__PURE__ */ import_react.default.createElement("p", { className: "dcr-note" }, t("scope")), selected.toolCalls > 0 && /* @__PURE__ */ import_react.default.createElement("p", { className: "dcr-note dcr-warning" }, t("tools", { count: selected.toolCalls })), content.some((part) => part.type !== "text") && /* @__PURE__ */ import_react.default.createElement("p", { className: "dcr-note" }, t("media")), selected.hasPathReferences && /* @__PURE__ */ import_react.default.createElement("p", { className: "dcr-note dcr-warning" }, t("paths")), conflict && /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-warning" }, /* @__PURE__ */ import_react.default.createElement("p", null, t("conflict")), /* @__PURE__ */ import_react.default.createElement("pre", { className: "dcr-preview" }, conflict.filter((part) => part.type === "text").map((part) => part.text).join("\n")), /* @__PURE__ */ import_react.default.createElement("div", { className: "dcr-actions" }, /* @__PURE__ */ import_react.default.createElement("button", { type: "button", onClick: () => {
